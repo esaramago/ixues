@@ -10,6 +10,7 @@ import {
   updateGitHubIssue
 } from '@/lib/github'
 import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
+import { generateTaskSlug, getProjectByIdOrSlug, getTaskByIdOrSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.user) {
@@ -17,7 +18,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   }
 
   try {
-    const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+    const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
     const project = structuredClone(projectRecord) as unknown as Project
 
     if (project.type === 'sync' && project.provider === 'github') {
@@ -49,18 +50,18 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       }
     }
 
-    const taskRecord = await locals.pb.collection('tasks').getOne(params.taskId, {
+    const taskRecord = await getTaskByIdOrSlug(locals.pb, project.id, params.taskId, {
       expand: 'assigned'
     })
 
-    if (taskRecord.project !== params.projectId) {
+    if (taskRecord.project !== project.id) {
       throw error(404, 'Task not found in this project')
     }
 
     let statuses: Status[] = []
     try {
       const statusRecords = await locals.pb.collection('statuses').getFullList({
-        filter: `project = "${params.projectId}"`,
+        filter: `project = "${project.id}"`,
         sort: 'order'
       })
       statuses = structuredClone(statusRecords) as unknown as Status[]
@@ -100,7 +101,7 @@ export const actions: Actions = {
 
     let project: Project
     try {
-      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
     } catch {
       throw error(404, 'Project not found')
@@ -141,9 +142,24 @@ export const actions: Actions = {
 
       try {
         const decryptedToken = decryptToken(project.token)
+        const isNumeric = /^\d+$/.test(params.taskId)
+        let issueNumber = params.taskId
+        if (!isNumeric) {
+          const ghTask = await fetchGitHubIssue(
+            project.repo_url,
+            params.taskId,
+            project.id,
+            locals.user.id,
+            decryptedToken
+          )
+          if (ghTask) {
+            issueNumber = String(ghTask.number || ghTask.id)
+          }
+        }
+
         await updateGitHubIssue(
           project.repo_url,
-          params.taskId,
+          issueNumber,
           {
             title,
             body: description,
@@ -163,18 +179,32 @@ export const actions: Actions = {
         })
       }
 
-      throw redirect(303, `/projects/${params.projectId}`)
+      throw redirect(303, `/projects/${project.slug || project.id}`)
     }
 
     try {
-      await locals.pb.collection('tasks').update(params.taskId, {
+      const taskRecord = await getTaskByIdOrSlug(locals.pb, project.id, params.taskId)
+      if (taskRecord.project !== project.id) {
+        throw error(404, 'Task not found in this project')
+      }
+
+      let taskSlug = taskRecord.slug
+      if (!taskSlug) {
+        taskSlug = await generateTaskSlug(locals.pb, project.id, title, taskRecord.id)
+      }
+
+      await locals.pb.collection('tasks').update(taskRecord.id, {
         title,
+        slug: taskSlug,
         description: description || null,
         priority: selectedPriority,
         status: status || null,
         assigned: assigned || null
       })
     } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'status' in err && (err as { status?: number }).status === 404) {
+        throw err
+      }
       const pbError = err as { status?: number; data?: { message?: string }; message?: string }
       return fail(pbError?.status || 500, {
         error: pbError?.data?.message || pbError?.message || 'Failed to update task.',
@@ -186,7 +216,7 @@ export const actions: Actions = {
       })
     }
 
-    throw redirect(303, `/projects/${params.projectId}`)
+    throw redirect(303, `/projects/${project.slug || project.id}`)
   },
 
   delete: async ({ params, locals }) => {
@@ -196,7 +226,7 @@ export const actions: Actions = {
 
     let project: Project
     try {
-      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
     } catch {
       throw error(404, 'Project not found')
@@ -209,7 +239,8 @@ export const actions: Actions = {
     }
 
     try {
-      await locals.pb.collection('tasks').delete(params.taskId)
+      const taskRecord = await getTaskByIdOrSlug(locals.pb, project.id, params.taskId)
+      await locals.pb.collection('tasks').delete(taskRecord.id)
     } catch (err: unknown) {
       const pbError = err as { status?: number; data?: { message?: string }; message?: string }
       return fail(pbError?.status || 500, {
@@ -217,6 +248,6 @@ export const actions: Actions = {
       })
     }
 
-    throw redirect(303, `/projects/${params.projectId}`)
+    throw redirect(303, `/projects/${project.slug || project.id}`)
   }
 }

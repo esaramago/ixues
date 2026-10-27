@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import { encryptToken, sanitizeProject } from '@/lib/server/crypto'
+import { generateProjectSlug, getProjectByIdOrSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.user) {
@@ -9,7 +10,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   }
 
   try {
-    const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+    const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
     const project = structuredClone(projectRecord) as unknown as Project
 
     if (project.user !== locals.user.id) {
@@ -35,7 +36,7 @@ export const actions: Actions = {
 
     let project: Project
     try {
-      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
       if (project.user !== locals.user.id) {
         throw error(403, 'Forbidden')
@@ -111,9 +112,14 @@ export const actions: Actions = {
       }
     }
 
+    let targetSlug = project.slug
     try {
-      await locals.pb.collection('projects').update(params.projectId, {
+      if (!targetSlug) {
+        targetSlug = await generateProjectSlug(locals.pb, name, project.id)
+      }
+      await locals.pb.collection('projects').update(project.id, {
         name,
+        slug: targetSlug,
         type,
         provider: type === 'sync' ? provider : null,
         repo_url: type === 'sync' ? repoUrl : null,
@@ -131,7 +137,7 @@ export const actions: Actions = {
       })
     }
 
-    throw redirect(303, `/projects/${params.projectId}`)
+    throw redirect(303, `/projects/${targetSlug || project.id}`)
   },
 
   delete: async ({ params, locals }) => {
@@ -140,13 +146,13 @@ export const actions: Actions = {
     }
 
     try {
-      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       const project = structuredClone(projectRecord) as unknown as Project
       if (project.user !== locals.user.id) {
         throw error(403, 'Forbidden')
       }
 
-      await locals.pb.collection('projects').delete(params.projectId)
+      await locals.pb.collection('projects').delete(project.id)
     } catch (err: unknown) {
       const pbError = err as { status?: number; data?: { message?: string }; message?: string }
       return fail(pbError?.status || 500, {

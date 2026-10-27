@@ -1,5 +1,6 @@
 import type { Status } from '@/types/status'
 import type { Task, TaskPriority } from '@/types/task'
+import { slugify } from '@/lib/slug'
 
 export interface GitHubIssueResponse {
   id: number
@@ -136,6 +137,7 @@ export function mapGitHubIssueToTask(
     id: String(issue.number),
     number: issue.number,
     title: issue.title,
+    slug: slugify(issue.title),
     description: issue.body || '',
     priority,
     status: issue.state === 'closed' ? 'closed' : 'open',
@@ -202,6 +204,12 @@ export async function fetchGitHubIssue(
   userId: string,
   token?: string | null
 ): Promise<Task | null> {
+  const isNumeric = /^\d+$/.test(String(issueNumber).trim())
+  if (!isNumeric) {
+    const allIssues = await fetchGitHubIssues(repoUrl, projectId, userId, token)
+    return allIssues.find((t) => t.slug === issueNumber || t.id === String(issueNumber)) || null
+  }
+
   const repoInfo = parseGitHubRepo(repoUrl)
   if (!repoInfo) {
     throw new Error('Invalid GitHub repository URL')

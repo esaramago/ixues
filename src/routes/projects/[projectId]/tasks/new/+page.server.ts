@@ -9,6 +9,7 @@ import {
   getGitHubStatuses
 } from '@/lib/github'
 import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
+import { generateTaskSlug, getProjectByIdOrSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
   if (!locals.user) {
@@ -16,9 +17,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
   }
 
   try {
-    const projectRecord = await locals.pb
-      .collection('projects')
-      .getOne(params.projectId)
+    const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
     const project = structuredClone(projectRecord) as unknown as Project
 
     if (project.type === 'sync' && project.provider === 'github') {
@@ -39,7 +38,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
     let statuses: Status[] = []
     try {
       const statusRecords = await locals.pb.collection('statuses').getFullList({
-        filter: `project = "${params.projectId}"`,
+        filter: `project = "${project.id}"`,
         sort: 'order',
       })
       statuses = structuredClone(statusRecords) as unknown as Status[]
@@ -82,7 +81,7 @@ export const actions: Actions = {
 
     let project: Project
     try {
-      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
     } catch {
       throw error(404, 'Project not found')
@@ -132,7 +131,7 @@ export const actions: Actions = {
             title,
             body: description
           },
-          params.projectId,
+          project.id,
           locals.user.id,
           decryptedToken
         )
@@ -148,14 +147,14 @@ export const actions: Actions = {
         })
       }
 
-      throw redirect(303, `/projects/${params.projectId}`)
+      throw redirect(303, `/projects/${project.slug || project.id}`)
     }
 
     let nextNumber = 1
     try {
       const highestTask = await locals.pb
         .collection('tasks')
-        .getFirstListItem(`project = "${params.projectId}"`, {
+        .getFirstListItem(`project = "${project.id}"`, {
           sort: '-number',
         })
       if (
@@ -166,7 +165,7 @@ export const actions: Actions = {
         nextNumber = highestTask.number + 1
       } else {
         const countResult = await locals.pb.collection('tasks').getList(1, 1, {
-          filter: `project = "${params.projectId}"`,
+          filter: `project = "${project.id}"`,
         })
         nextNumber = countResult.totalItems + 1
       }
@@ -175,14 +174,16 @@ export const actions: Actions = {
     }
 
     try {
+      const slug = await generateTaskSlug(locals.pb, project.id, title)
       await locals.pb.collection('tasks').create({
         number: nextNumber,
         title,
+        slug,
         description: description || null,
         priority: selectedPriority,
         status: status || null,
         assigned: assigned || null,
-        project: params.projectId,
+        project: project.id,
         user: locals.user.id,
       })
     } catch (err: unknown) {
@@ -204,6 +205,6 @@ export const actions: Actions = {
       })
     }
 
-    throw redirect(303, `/projects/${params.projectId}`)
+    throw redirect(303, `/projects/${project.slug || project.id}`)
   },
 }

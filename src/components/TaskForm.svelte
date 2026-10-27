@@ -16,7 +16,7 @@
   }
 
   interface Props {
-    project: Pick<Project, 'id' | 'name'> & Partial<Pick<Project, 'type' | 'provider' | 'repo_url'>>
+    project: Pick<Project, 'id' | 'name'> & Partial<Pick<Project, 'type' | 'provider' | 'repo_url' | 'slug'>>
     statuses: Status[]
     users?: User[]
     task?: Task | null
@@ -55,7 +55,7 @@
     subheading ?? (isEdit ? `Edit task in ${project.name}.` : `Add a new task to ${project.name}.`)
   )
   let resolvedAction = $derived(action ?? (isEdit ? '?/update' : undefined))
-  let resolvedCancelHref = $derived(cancelHref ?? `/projects/${project.id}`)
+  let resolvedCancelHref = $derived(cancelHref ?? `/projects/${project.slug || project.id}`)
   let resolvedSubmitLabel = $derived(submitLabel ?? (isEdit ? 'Save Changes' : 'Create Task'))
 
   let isSyncTask = $derived(project.type === 'sync' || !!task?.url)

@@ -9,6 +9,7 @@ export interface Task {
   updated?: string
   number?: number
   title: string
+  slug?: string
   description?: string
   priority?: TaskPriority | null
   status?: string | null

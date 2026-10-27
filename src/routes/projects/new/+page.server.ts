@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
 import { encryptToken } from '@/lib/server/crypto'
+import { generateProjectSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
@@ -70,8 +71,10 @@ export const actions: Actions = {
 		}
 
 		try {
+			const slug = await generateProjectSlug(locals.pb, name)
 			await locals.pb.collection('projects').create({
 				name,
+				slug,
 				type,
 				provider: type === 'sync' ? provider : null,
 				repo_url: type === 'sync' ? repoUrl : null,

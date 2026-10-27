@@ -9,6 +9,7 @@ import {
   updateGitHubIssueState
 } from '@/lib/github'
 import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
+import { getProjectByIdOrSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.user) {
@@ -16,7 +17,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   }
 
   try {
-    const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+    const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
     const project = structuredClone(projectRecord) as unknown as Project
 
     let statuses: Status[] = []
@@ -38,14 +39,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       }
     } else {
       const statusRecords = await locals.pb.collection('statuses').getFullList({
-        filter: `project = "${params.projectId}"`,
+        filter: `project = "${project.id}"`,
         sort: 'order'
       })
       statuses = structuredClone(statusRecords) as unknown as Status[]
 
       try {
         const taskRecords = await locals.pb.collection('tasks').getFullList({
-          filter: `project = "${params.projectId}"`,
+          filter: `project = "${project.id}"`,
           sort: 'number',
           expand: 'assigned'
         })
@@ -75,7 +76,7 @@ export const actions: Actions = {
 
     let project: Project
     try {
-      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
     } catch {
       throw error(404, 'Project not found')
@@ -107,7 +108,7 @@ export const actions: Actions = {
     let order = orderStr ? parseInt(orderStr, 10) : NaN
     if (isNaN(order)) {
       const existing = await locals.pb.collection('statuses').getFullList({
-        filter: `project = "${params.projectId}"`,
+        filter: `project = "${project.id}"`,
         sort: '-order',
         limit: 1
       })
@@ -117,7 +118,7 @@ export const actions: Actions = {
     try {
       await locals.pb.collection('statuses').create({
         name,
-        project: params.projectId,
+        project: project.id,
         order,
         color,
         user: locals.user.id
@@ -144,7 +145,7 @@ export const actions: Actions = {
 
     let project: Project
     try {
-      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
     } catch {
       throw error(404, 'Project not found')
@@ -188,7 +189,7 @@ export const actions: Actions = {
 
     try {
       const existingStatus = await locals.pb.collection('statuses').getOne(statusId)
-      if (existingStatus.project !== params.projectId) {
+      if (existingStatus.project !== project.id) {
         return fail(400, {
           error: 'Status does not belong to this project.',
           statusId,
@@ -231,7 +232,7 @@ export const actions: Actions = {
 
     let project: Project
     try {
-      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
     } catch {
       throw error(404, 'Project not found')
@@ -269,13 +270,13 @@ export const actions: Actions = {
 
     try {
       const task = await locals.pb.collection('tasks').getOne(taskId)
-      if (task.project !== params.projectId) {
+      if (task.project !== project.id) {
         return fail(400, { error: 'Task does not belong to this project.' })
       }
 
       if (statusId) {
         const statusRecord = await locals.pb.collection('statuses').getOne(statusId)
-        if (statusRecord.project !== params.projectId) {
+        if (statusRecord.project !== project.id) {
           return fail(400, { error: 'Status does not belong to this project.' })
         }
       }
