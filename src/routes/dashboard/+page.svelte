@@ -26,41 +26,38 @@
 {:else}
   <Grid wrap={true} break="small">
     {#each data.projects as project (project.id)}
-      <wa-card>
-        <Grid direction="column" gap="s">
-          <Grid align="center" justify="space-between">
-            <a href={`/projects/${project.slug || project.id}`}>
+      <a href={`/projects/${project.slug || project.id}`}>
+        <wa-card>
+          <Grid direction="column" gap="s">
+            <Grid align="center" justify="space-between">
               <strong>{project.name}</strong>
-            </a>
-            {#if project.type === 'sync'}
+              {#if project.type === 'sync'}
               <wa-badge variant="neutral">
-                {#if project.provider === 'github'}
-                  <wa-icon slot="start" family="brands" name="github"></wa-icon>
-                {:else if project.provider === 'jira'}
-                  <wa-icon slot="start" family="brands" name="jira"></wa-icon>
-                {/if}
+                <wa-icon slot="start" family="brands" name="jira"></wa-icon>
                 {project.provider ?? 'Sync'}
               </wa-badge>
-            {:else}
+              {:else}
               <wa-badge variant="brand">Local</wa-badge>
-            {/if}
+              {/if}
+            </Grid>
           </Grid>
-
-          {#if project.repo_url}
-            <small>{project.repo_url}</small>
-          {/if}
-
-          <Grid justify="end" gap="s">
-            <wa-button href={`/projects/${project.slug || project.id}/edit`} size="s" variant="neutral">
-              <wa-icon slot="start" name="pen-to-square" variant="solid"></wa-icon>
-              Edit
-            </wa-button>
-            <wa-button href={`/projects/${project.slug || project.id}`} size="s" variant="neutral">
-              Open
-            </wa-button>
-          </Grid>
-        </Grid>
-      </wa-card>
+        </wa-card>
+      </a>
     {/each}
   </Grid>
 {/if}
+
+<style>
+a {
+  text-decoration: none;
+  &:hover {
+    > wa-card {
+      background-color: var(--wa-color-brand-05);
+    }
+  }
+}
+wa-card {
+  width: 30rem;
+  transition: background-color .2s ease;
+}
+</style>

@@ -11,6 +11,7 @@
   users={data.users}
   availableLabels={data.availableLabels}
   defaultStatus={data.defaultStatus}
+  defaultAssigned={data.defaultAssigned}
   {form}
 />
 

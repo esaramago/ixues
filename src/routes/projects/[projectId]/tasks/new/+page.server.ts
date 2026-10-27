@@ -42,6 +42,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
         project: sanitizeProject(project),
         statuses,
         defaultStatus,
+        defaultAssigned: '',
         users: [],
         availableLabels
       }
@@ -74,10 +75,13 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
       users = []
     }
 
+    const defaultAssigned = users.length === 1 ? users[0].id : ''
+
     return {
       project: sanitizeProject(project),
       statuses,
       defaultStatus,
+      defaultAssigned,
       users,
       availableLabels: [...DEFAULT_LOCAL_LABELS]
     }

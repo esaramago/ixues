@@ -24,6 +24,7 @@
     availableLabels?: string[]
     task?: Task | null
     defaultStatus?: string
+    defaultAssigned?: string
     form?: TaskFormData | null
     heading?: string
     subheading?: string
@@ -41,6 +42,7 @@
     availableLabels = [],
     task = null,
     defaultStatus = '',
+    defaultAssigned = '',
     form = null,
     heading,
     subheading,
@@ -70,6 +72,10 @@
         : null)
   )
 
+  let defaultAssignedValue = $derived(
+    defaultAssigned || (!task && users.length === 1 ? users[0].id : '')
+  )
+
   let priority = $state<TaskPriority>('medium')
   let status = $state('')
   let assigned = $state('')
@@ -95,12 +101,12 @@
   })
 
   $effect(() => {
-    const currentKey = task?.id ?? `new-${defaultStatus}`
+    const currentKey = task?.id ?? `new-${defaultStatus}-${defaultAssignedValue}`
     if (currentKey !== prevKey) {
       prevKey = currentKey
       priority = task?.priority || 'medium'
       status = task ? (task.status || '') : (defaultStatus || statuses[0]?.id || '')
-      assigned = task?.assigned || ''
+      assigned = task ? (task.assigned || '') : defaultAssignedValue
       selectedLabels = Array.isArray(task?.labels) ? [...task.labels] : []
     }
     if (form?.priority) {
