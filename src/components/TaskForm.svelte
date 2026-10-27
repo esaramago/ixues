@@ -57,9 +57,6 @@
   let resolvedHeading = $derived(
     heading ?? (isEdit ? (task?.number ? `Task #${task.number}` : 'Edit Task') : 'New Task')
   )
-  let resolvedSubheading = $derived(
-    subheading ?? (isEdit ? `Edit task in ${project.name}.` : `Add a new task to ${project.name}.`)
-  )
   let resolvedAction = $derived(action ?? (isEdit ? '?/update' : undefined))
   let resolvedCancelHref = $derived(cancelHref ?? `/projects/${project.slug || project.id}`)
   let resolvedSubmitLabel = $derived(submitLabel ?? (isEdit ? 'Save Changes' : 'Create Task'))
@@ -151,7 +148,7 @@
   <wa-card>
     <Grid direction="column" gap="l">
       <Grid justify="space-between" align="center" wrap={true} gap="s">
-        <Back href={resolvedCancelHref} title={resolvedHeading} subtitle={resolvedSubheading} />
+        <Back href={resolvedCancelHref} title={resolvedHeading} />
 
         {#if originalTaskUrl}
           <wa-button
@@ -161,27 +158,12 @@
             variant="neutral"
             size="s"
           >
-            {#if project.provider === 'github'}
-              <wa-icon slot="start" family="brands" name="github"></wa-icon>
-            {:else if project.provider === 'jira'}
-              <wa-icon slot="start" family="brands" name="jira"></wa-icon>
-            {:else}
-              <wa-icon slot="start" name="link" variant="solid"></wa-icon>
-            {/if}
+            <wa-icon slot="start" family="brands" name={project.provider}></wa-icon>
             Original Task
             <wa-icon slot="end" name="arrow-up-right-from-square" variant="solid"></wa-icon>
           </wa-button>
         {/if}
       </Grid>
-
-      {#if originalTaskUrl}
-        <Grid align="center" gap="s">
-          <wa-icon name="link" variant="solid"></wa-icon>
-          <a href={originalTaskUrl} target="_blank" rel="noreferrer">
-            {originalTaskUrl}
-          </a>
-        </Grid>
-      {/if}
 
       {#if form?.error}
         <wa-callout variant="danger">
@@ -192,15 +174,6 @@
 
       <form method="POST" action={resolvedAction}>
         <Grid direction="column" gap="l">
-          {#if isEdit && task?.number}
-            <wa-input
-              label="Number"
-              value={`#${task.number}`}
-              readonly
-              disabled
-            ></wa-input>
-          {/if}
-
           <wa-input
             name="title"
             label="Title"

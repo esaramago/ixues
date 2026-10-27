@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { navigating } from '$app/state'
   import Grid from '@/components/Grid.svelte'
   import type { PageData } from './$types'
 
@@ -26,19 +27,31 @@
 {:else}
   <Grid wrap={true} break="small">
     {#each data.projects as project (project.id)}
-      <a href={`/projects/${project.slug || project.id}`}>
+      {@const projectHref = `/projects/${project.slug || project.id}`}
+      {@const isOpening = Boolean(
+        navigating.to &&
+        (navigating.to.url.pathname === projectHref ||
+         navigating.to.url.pathname === `/projects/${project.id}` ||
+         (project.slug && navigating.to.url.pathname === `/projects/${project.slug}`))
+      )}
+      <a href={projectHref}>
         <wa-card>
           <Grid direction="column" gap="s">
             <Grid align="center" justify="space-between">
               <strong>{project.name}</strong>
-              {#if project.type === 'sync'}
-              <wa-badge variant="neutral">
-                <wa-icon slot="start" family="brands" name="jira"></wa-icon>
-                {project.provider ?? 'Sync'}
-              </wa-badge>
-              {:else}
-              <wa-badge variant="brand">Local</wa-badge>
-              {/if}
+              <Grid align="center" gap="xs">
+                {#if isOpening}
+                  <wa-spinner></wa-spinner>
+                {/if}
+                {#if project.type === 'sync'}
+                  <wa-badge variant="neutral">
+                    <wa-icon slot="start" family="brands" name={project.provider}></wa-icon>
+                    {project.provider ?? 'Sync'}
+                  </wa-badge>
+                {:else}
+                  <wa-badge variant="brand">Local</wa-badge>
+                {/if}
+              </Grid>
             </Grid>
           </Grid>
         </wa-card>

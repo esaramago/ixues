@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { navigating } from '$app/state'
   import '@/css/main.css'
   import '@awesome.me/webawesome/dist/styles/webawesome.css'
   import '@awesome.me/webawesome/dist/components/avatar/avatar.js'
@@ -13,15 +14,20 @@
   import '@awesome.me/webawesome/dist/components/icon/icon.js'
   import '@awesome.me/webawesome/dist/components/input/input.js'
   import '@awesome.me/webawesome/dist/components/option/option.js'
+  import '@awesome.me/webawesome/dist/components/progress-bar/progress-bar.js'
   import '@awesome.me/webawesome/dist/components/radio/radio.js'
   import '@awesome.me/webawesome/dist/components/radio-group/radio-group.js'
   import '@awesome.me/webawesome/dist/components/select/select.js'
+  import '@awesome.me/webawesome/dist/components/spinner/spinner.js'
   import '@awesome.me/webawesome/dist/components/textarea/textarea.js'
   import Header from '@/components/Header.svelte'
 
   let { children } = $props()
 </script>
 
+{#if navigating.to}
+  <wa-progress-bar indeterminate></wa-progress-bar>
+{/if}
 <Header />
 <main class="l-container">
   {@render children?.()}
