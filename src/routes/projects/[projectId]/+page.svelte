@@ -1,12 +1,19 @@
 <script lang="ts">
   import { enhance } from '$app/forms'
+  import { invalidateAll } from '$app/navigation'
   import Grid from '@/components/Grid.svelte'
   import type { ActionData, PageData } from './$types'
-  import type { TaskPriority } from '@/types/task'
+  import type { Task, TaskPriority } from '@/types/task'
 
   let { data, form }: { data: PageData; form: ActionData } = $props()
 
   let isDialogOpen = $state(false)
+  let tasks = $state<Task[]>([])
+  let isDragging = $state(false)
+
+  $effect(() => {
+    tasks = data.tasks
+  })
 
   $effect(() => {
     if (form?.error) {
@@ -15,7 +22,7 @@
   })
 
   let unassignedTasks = $derived(
-    data.tasks.filter((task) => !task.status || !data.statuses.some((s) => s.id === task.status))
+    tasks.filter((task) => !task.status || !data.statuses.some((s) => s.id === task.status))
   )
 
   function getPriorityVariant(
@@ -32,6 +39,63 @@
         return 'neutral'
       default:
         return 'neutral'
+    }
+  }
+
+  function handleDragStart(event: DragEvent, taskId: string) {
+    if (event.dataTransfer) {
+      event.dataTransfer.setData('text/plain', taskId)
+      event.dataTransfer.effectAllowed = 'move'
+    }
+    isDragging = true
+  }
+
+  function handleDragEnd() {
+    setTimeout(() => {
+      isDragging = false
+    }, 100)
+  }
+
+  function handleDragOver(event: DragEvent) {
+    event.preventDefault()
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move'
+    }
+  }
+
+  async function handleDrop(event: DragEvent, targetStatusId: string | null) {
+    event.preventDefault()
+    const taskId = event.dataTransfer?.getData('text/plain')
+    if (!taskId) return
+
+    const targetTask = tasks.find((t) => t.id === taskId)
+    if (!targetTask) return
+
+    const currentStatusId = targetTask.status || null
+    if (currentStatusId === targetStatusId) return
+
+    const previousTasks = [...tasks]
+    // Optimistic UI update
+    tasks = tasks.map((t) => (t.id === taskId ? { ...t, status: targetStatusId || null } : t))
+
+    const formData = new FormData()
+    formData.append('taskId', taskId)
+    formData.append('statusId', targetStatusId || '')
+
+    try {
+      const response = await fetch('?/moveTask', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        tasks = previousTasks
+        return
+      }
+
+      await invalidateAll()
+    } catch {
+      tasks = previousTasks
     }
   }
 </script>
@@ -104,8 +168,12 @@
   {:else}
     <Grid wrap={true} break="small">
       {#each data.statuses as status (status.id)}
-        {@const statusTasks = data.tasks.filter((task) => task.status === status.id)}
-        <wa-card>
+        {@const statusTasks = tasks.filter((task) => task.status === status.id)}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <wa-card
+          ondragover={handleDragOver}
+          ondrop={(e: DragEvent) => handleDrop(e, status.id)}
+        >
           <Grid direction="column" gap="s">
             <Grid align="center" justify="space-between">
               <strong>{status.name}</strong>
@@ -120,7 +188,17 @@
                 <small>No tasks</small>
               {:else}
                 {#each statusTasks as task (task.id)}
-                  <a href={`/projects/${data.project.id}/tasks/${task.id}`}>
+                  <a
+                    href={`/projects/${data.project.id}/tasks/${task.id}`}
+                    draggable="true"
+                    ondragstart={(e: DragEvent) => handleDragStart(e, task.id)}
+                    ondragend={handleDragEnd}
+                    onclick={(e: MouseEvent) => {
+                      if (isDragging) {
+                        e.preventDefault()
+                      }
+                    }}
+                  >
                     <wa-card>
                       <Grid direction="column" gap="xs">
                         <strong>{task.title}</strong>
@@ -154,7 +232,11 @@
       {/each}
 
       {#if unassignedTasks.length > 0}
-        <wa-card>
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <wa-card
+          ondragover={handleDragOver}
+          ondrop={(e: DragEvent) => handleDrop(e, null)}
+        >
           <Grid direction="column" gap="s">
             <Grid align="center" justify="space-between">
               <strong>No Status</strong>
@@ -163,7 +245,17 @@
 
             <Grid direction="column" gap="s">
               {#each unassignedTasks as task (task.id)}
-                <a href={`/projects/${data.project.id}/tasks/${task.id}`}>
+                <a
+                  href={`/projects/${data.project.id}/tasks/${task.id}`}
+                  draggable="true"
+                  ondragstart={(e: DragEvent) => handleDragStart(e, task.id)}
+                  ondragend={handleDragEnd}
+                  onclick={(e: MouseEvent) => {
+                    if (isDragging) {
+                      e.preventDefault()
+                    }
+                  }}
+                >
                   <wa-card>
                     <Grid direction="column" gap="xs">
                       <strong>{task.title}</strong>

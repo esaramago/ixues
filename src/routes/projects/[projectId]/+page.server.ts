@@ -105,5 +105,46 @@ export const actions: Actions = {
     return {
       success: true
     }
+  },
+
+  moveTask: async ({ request, params, locals }) => {
+    if (!locals.user) {
+      throw redirect(303, '/login')
+    }
+
+    const data = await request.formData()
+    const taskId = (data.get('taskId') as string)?.trim()
+    const statusId = (data.get('statusId') as string)?.trim() || null
+
+    if (!taskId) {
+      return fail(400, { error: 'Task ID is required.' })
+    }
+
+    try {
+      const task = await locals.pb.collection('tasks').getOne(taskId)
+      if (task.project !== params.projectId) {
+        return fail(400, { error: 'Task does not belong to this project.' })
+      }
+
+      if (statusId) {
+        const statusRecord = await locals.pb.collection('statuses').getOne(statusId)
+        if (statusRecord.project !== params.projectId) {
+          return fail(400, { error: 'Status does not belong to this project.' })
+        }
+      }
+
+      await locals.pb.collection('tasks').update(taskId, {
+        status: statusId
+      })
+
+      return {
+        success: true
+      }
+    } catch (err: unknown) {
+      const pbError = err as { status?: number; data?: { message?: string }; message?: string }
+      return fail(pbError?.status || 500, {
+        error: pbError?.data?.message || pbError?.message || 'Failed to move task.'
+      })
+    }
   }
 }

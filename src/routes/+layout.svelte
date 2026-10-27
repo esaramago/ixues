@@ -16,7 +16,6 @@
   import '@awesome.me/webawesome/dist/components/textarea/textarea.js'
   import Header from '@/components/Header.svelte'
   import Footer from '@/components/Footer.svelte'
-  import Grid from '@/components/Grid.svelte'
 
   let { children } = $props()
 </script>
