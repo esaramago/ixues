@@ -1,0 +1,10 @@
+export interface Project {
+	id: string
+	created?: string
+	updated?: string
+	name: string
+	type: 'local' | 'sync'
+	provider?: string | null
+	repo_url?: string | null
+	user: string
+}
