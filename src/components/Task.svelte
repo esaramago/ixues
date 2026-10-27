@@ -25,7 +25,7 @@
       case 'medium':
         return 'brand'
       case 'low':
-        return 'neutral'
+        return 'success'
       default:
         return 'neutral'
     }
@@ -78,13 +78,13 @@
       </Grid>
       <Grid gap="xs" wrap={true}>
         {#if task.priority}
-          <wa-badge size="s" variant={getPriorityVariant(task.priority)}>
+          <wa-badge size="s" pill variant={getPriorityVariant(task.priority)}>
             {task.priority}
           </wa-badge>
         {/if}
         {#if task.labels && task.labels.length > 0}
           {#each task.labels as label (label)}
-            <wa-badge size="s" variant="neutral">
+            <wa-badge size="s" pill variant="neutral">
               {label}
             </wa-badge>
           {/each}
@@ -99,7 +99,7 @@
   text-decoration: none;
   &:hover {
     > wa-card {
-      background-color: var(--wa-color-primary-05);
+      background-color: var(--wa-color-brand-05);
     }
   }
 }

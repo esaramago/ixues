@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation'
+  import Back from '@/components/Back.svelte'
   import Grid from '@/components/Grid.svelte'
   import StatusForm from '@/components/StatusForm.svelte'
   import Task from '@/components/Task.svelte'
@@ -80,8 +81,7 @@
 
 <Grid direction="column">
   <Grid align="center" justify="space-between">
-    <Grid align="center" gap="s">
-      <h2>{data.project.name}</h2>
+    <Back href="/dashboard" title={data.project.name}>
       {#if data.project.type === 'sync'}
         <wa-badge variant="neutral">
           <wa-icon slot="start" family="brands" name={data.project.provider}></wa-icon>
@@ -90,7 +90,7 @@
       {:else}
         <wa-badge variant="brand">Local</wa-badge>
       {/if}
-    </Grid>
+    </Back>
 
     <Grid align="center" gap="s">
       <wa-button href={`/projects/${data.project.slug || data.project.id}/tasks/new`} size="s" variant="brand">

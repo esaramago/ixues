@@ -6,17 +6,7 @@
   --wa-space-scale: 1.6;
   --wa-border-radius-scale: 1.6;
 
-  --wa-color-primary-95: var(--wa-color-cyan-95);
-  --wa-color-primary-90: var(--wa-color-cyan-90);
-  --wa-color-primary-80: var(--wa-color-cyan-80);
-  --wa-color-primary-70: var(--wa-color-cyan-70);
-  --wa-color-primary-60: var(--wa-color-cyan-60);
-  --wa-color-primary-50: var(--wa-color-cyan-50);
-  --wa-color-primary-40: var(--wa-color-cyan-40);
-  --wa-color-primary-30: var(--wa-color-cyan-30);
-  --wa-color-primary-20: var(--wa-color-cyan-20);
-  --wa-color-primary-10: var(--wa-color-cyan-10);
-  --wa-color-primary-05: var(--wa-color-cyan-05);
+  --wa-color-neutral-0: #050505;
 
   --wa-color-surface-default: var(--wa-color-neutral-10);
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Back from '@/components/Back.svelte'
   import Grid from '@/components/Grid.svelte'
   import type { ActionData } from './$types'
 
@@ -7,10 +8,7 @@
 
 <wa-card>
   <Grid direction="column" gap="l">
-    <Grid direction="column" gap="xs">
-      <h2>Sign in</h2>
-      <p>Enter your credentials to access Ixues.</p>
-    </Grid>
+    <Back href="/" title="Sign in" subtitle="Enter your credentials to access Ixues." />
 
     {#if form?.error}
       <wa-callout variant="danger">

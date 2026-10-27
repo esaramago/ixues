@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Back from '@/components/Back.svelte'
   import ConfirmDialog from '@/components/ConfirmDialog.svelte'
   import Grid from '@/components/Grid.svelte'
   import type { Project } from '@/types/project'
@@ -114,10 +115,7 @@
 
 <wa-card>
   <Grid direction="column" gap="l">
-    <Grid direction="column" gap="xs">
-      <h2>{resolvedHeading}</h2>
-      <p>{resolvedSubheading}</p>
-    </Grid>
+    <Back href={resolvedCancelHref} title={resolvedHeading} subtitle={resolvedSubheading} />
 
     {#if form?.error}
       <wa-callout variant="danger">
