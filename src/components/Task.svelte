@@ -95,11 +95,17 @@
 </a>
 
 <style>
-a {
+.task {
   text-decoration: none;
+  &:hover {
+    > wa-card {
+      background-color: var(--wa-color-primary-05);
+    }
+  }
 }
 wa-card {
   --spacing: var(--wa-space-s);
+  transition: background-color .2s ease;
 }
 h3 {
   font-size: var(--wa-font-size-s);

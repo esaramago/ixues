@@ -51,11 +51,11 @@
           {/if}
 
           <Grid justify="end" gap="s">
-            <wa-button href={`/projects/${project.slug || project.id}/edit`} size="small" variant="neutral">
+            <wa-button href={`/projects/${project.slug || project.id}/edit`} size="s" variant="neutral">
               <wa-icon slot="start" name="pen-to-square" variant="solid"></wa-icon>
               Edit
             </wa-button>
-            <wa-button href={`/projects/${project.slug || project.id}`} size="small" variant="neutral">
+            <wa-button href={`/projects/${project.slug || project.id}`} size="s" variant="neutral">
               Open
             </wa-button>
           </Grid>

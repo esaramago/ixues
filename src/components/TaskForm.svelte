@@ -155,7 +155,7 @@
             target="_blank"
             rel="noreferrer"
             variant="neutral"
-            size="small"
+            size="s"
           >
             {#if project.provider === 'github'}
               <wa-icon slot="start" family="brands" name="github"></wa-icon>

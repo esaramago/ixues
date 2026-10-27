@@ -78,7 +78,7 @@
   }
 </script>
 
-<Grid direction="column" gap="xl">
+<Grid direction="column">
   <Grid align="center" justify="space-between">
     <Grid align="center" gap="s">
       <h2>{data.project.name}</h2>
@@ -93,7 +93,7 @@
     </Grid>
 
     <Grid align="center" gap="s">
-      <wa-button href={`/projects/${data.project.slug || data.project.id}/tasks/new`} size="small" variant="brand">
+      <wa-button href={`/projects/${data.project.slug || data.project.id}/tasks/new`} size="s" variant="brand">
         <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
         New Task
       </wa-button>
@@ -101,13 +101,13 @@
       {#if data.project.type === 'local'}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <wa-button size="small" variant="neutral" onclick={() => (isCreateDialogOpen = true)}>
+        <wa-button size="s" variant="neutral" onclick={() => (isCreateDialogOpen = true)}>
           <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
           New Status
         </wa-button>
       {/if}
 
-      <wa-button href={`/projects/${data.project.slug || data.project.id}/edit`} size="small" variant="neutral">
+      <wa-button href={`/projects/${data.project.slug || data.project.id}/edit`} size="s" variant="neutral">
         <wa-icon slot="start" name="pen-to-square" variant="solid"></wa-icon>
         Edit Project
       </wa-button>
@@ -162,12 +162,12 @@
           >
             <Grid direction="column" gap="s">
               <Grid align="center" justify="space-between">
-                <Grid align="center" gap="2xs">
+                <Grid align="center" gap="xs">
                   <wa-icon name="circle" style={`color: ${status.color || 'var(--wa-color-neutral-50)'}`} variant="regular"></wa-icon>
                   <strong>{status.name}</strong>
+                  <wa-badge variant="neutral" pill appearance="filled-outlined" class="status__counter">{statusTasks.length}</wa-badge>
                 </Grid>
                 <Grid align="center" gap="xs">
-                  <wa-badge variant="neutral">{statusTasks.length}</wa-badge>
                   {#if data.project.type === 'local'}
                     <wa-dropdown
                       placement="bottom-end"
@@ -179,13 +179,13 @@
                     >
                       <!-- svelte-ignore a11y_click_events_have_key_events -->
                       <!-- svelte-ignore a11y_no_static_element_interactions -->
-                      <wa-button slot="trigger" size="small" variant="neutral" aria-label="Status actions">
+                      <wa-button slot="trigger" size="s" variant="neutral" aria-label="Status actions" appearance="plain">
                         <wa-icon name="ellipsis-vertical" variant="solid"></wa-icon>
                       </wa-button>
                       <!-- svelte-ignore a11y_click_events_have_key_events -->
                       <!-- svelte-ignore a11y_no_static_element_interactions -->
                       <wa-dropdown-item value="edit" onclick={() => (editingStatus = status)}>
-                        Editar
+                        Edit status
                       </wa-dropdown-item>
                     </wa-dropdown>
                   {/if}
@@ -282,9 +282,14 @@
   min-width: var(--width);
   max-width: var(--width);
   overflow: auto;
+  background-color: var(--wa-color-neutral-05);
 
   @media (max-width: 1400px) {
     --width: 25rem;
   }
+}
+.status__counter {
+  font-size: var(--wa-font-size-2xs);
+  font-weight: 600;
 }
 </style>

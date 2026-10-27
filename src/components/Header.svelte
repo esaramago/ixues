@@ -14,13 +14,13 @@
 
     <Grid align="center" gap="s">
       {#if $page.data.user}
-        <wa-button size="small" variant="neutral" href="/dashboard">Dashboard</wa-button>
+        <wa-button size="s" variant="neutral" href="/dashboard">Dashboard</wa-button>
         <span>{$page.data.user.email}</span>
         <form method="POST" action="/logout">
-          <wa-button size="small" type="submit" variant="neutral">Sign Out</wa-button>
+          <wa-button size="s" type="submit" variant="neutral">Sign Out</wa-button>
         </form>
       {:else}
-        <wa-button size="small" variant="brand" href="/login">Sign In</wa-button>
+        <wa-button size="s" variant="brand" href="/login">Sign In</wa-button>
       {/if}
     </Grid>
   </Grid>
