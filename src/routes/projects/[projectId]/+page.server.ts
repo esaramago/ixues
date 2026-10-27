@@ -107,6 +107,93 @@ export const actions: Actions = {
     }
   },
 
+  updateStatus: async ({ request, params, locals }) => {
+    if (!locals.user) {
+      throw redirect(303, '/login')
+    }
+
+    let project: Project
+    try {
+      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      project = structuredClone(projectRecord) as unknown as Project
+    } catch {
+      throw error(404, 'Project not found')
+    }
+
+    const data = await request.formData()
+    const statusId = (data.get('statusId') as string)?.trim()
+    const name = (data.get('name') as string)?.trim()
+    const orderStr = (data.get('order') as string)?.trim()
+    const color = (data.get('color') as string)?.trim() || null
+
+    if (project.type === 'sync') {
+      return fail(400, {
+        error: 'Statuses cannot be edited for synchronized projects.',
+        statusId,
+        name,
+        order: orderStr,
+        color
+      })
+    }
+
+    if (!statusId) {
+      return fail(400, {
+        error: 'Status ID is required.',
+        statusId: '',
+        name,
+        order: orderStr,
+        color
+      })
+    }
+
+    if (!name) {
+      return fail(400, {
+        error: 'Status name is required.',
+        statusId,
+        name,
+        order: orderStr,
+        color
+      })
+    }
+
+    try {
+      const existingStatus = await locals.pb.collection('statuses').getOne(statusId)
+      if (existingStatus.project !== params.projectId) {
+        return fail(400, {
+          error: 'Status does not belong to this project.',
+          statusId,
+          name,
+          order: orderStr,
+          color
+        })
+      }
+
+      let order = orderStr ? parseInt(orderStr, 10) : NaN
+      if (isNaN(order)) {
+        order = existingStatus.order ?? 0
+      }
+
+      await locals.pb.collection('statuses').update(statusId, {
+        name,
+        order,
+        color
+      })
+    } catch (err: unknown) {
+      const pbError = err as { status?: number; data?: { message?: string }; message?: string }
+      return fail(pbError?.status || 500, {
+        error: pbError?.data?.message || pbError?.message || 'Failed to update status.',
+        statusId,
+        name,
+        order: orderStr,
+        color
+      })
+    }
+
+    return {
+      success: true
+    }
+  },
+
   moveTask: async ({ request, params, locals }) => {
     if (!locals.user) {
       throw redirect(303, '/login')

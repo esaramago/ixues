@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { enhance } from '$app/forms'
   import { invalidateAll } from '$app/navigation'
   import Grid from '@/components/Grid.svelte'
+  import StatusForm from '@/components/StatusForm.svelte'
   import type { ActionData, PageData } from './$types'
+  import type { Status } from '@/types/status'
   import type { Task, TaskPriority } from '@/types/task'
 
   let { data, form }: { data: PageData; form: ActionData } = $props()
 
-  let isDialogOpen = $state(false)
+  let isCreateDialogOpen = $state(false)
+  let editingStatus = $state<Status | null>(null)
   let tasks = $state<Task[]>([])
   let isDragging = $state(false)
 
@@ -17,7 +19,14 @@
 
   $effect(() => {
     if (form?.error) {
-      isDialogOpen = true
+      if ('statusId' in form && form.statusId) {
+        const found = data.statuses.find((s) => s.id === form.statusId)
+        if (found) {
+          editingStatus = found
+        }
+      } else {
+        isCreateDialogOpen = true
+      }
     }
   })
 
@@ -127,7 +136,7 @@
       {#if data.project.type === 'local'}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <wa-button size="small" variant="neutral" onclick={() => (isDialogOpen = true)}>
+        <wa-button size="small" variant="neutral" onclick={() => (isCreateDialogOpen = true)}>
           <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
           New Status
         </wa-button>
@@ -158,7 +167,7 @@
         {#if data.project.type === 'local'}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <wa-button variant="brand" onclick={() => (isDialogOpen = true)}>
+          <wa-button variant="brand" onclick={() => (isCreateDialogOpen = true)}>
             <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
             Create Status
           </wa-button>
@@ -177,7 +186,30 @@
           <Grid direction="column" gap="s">
             <Grid align="center" justify="space-between">
               <strong>{status.name}</strong>
-              <wa-badge variant="neutral">{statusTasks.length}</wa-badge>
+              <Grid align="center" gap="xs">
+                <wa-badge variant="neutral">{statusTasks.length}</wa-badge>
+                {#if data.project.type === 'local'}
+                  <wa-dropdown
+                    placement="bottom-end"
+                    onwa-select={(e: CustomEvent<{ item: HTMLElement }>) => {
+                      if (e.detail.item.getAttribute('value') === 'edit') {
+                        editingStatus = status
+                      }
+                    }}
+                  >
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <wa-button slot="trigger" size="small" variant="neutral" aria-label="Status actions">
+                      <wa-icon name="ellipsis-vertical" variant="solid"></wa-icon>
+                    </wa-button>
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <wa-dropdown-item value="edit" onclick={() => (editingStatus = status)}>
+                      Editar
+                    </wa-dropdown-item>
+                  </wa-dropdown>
+                {/if}
+              </Grid>
             </Grid>
             {#if status.color}
               <small>{status.color}</small>
@@ -283,63 +315,29 @@
 
 <wa-dialog
   label="New Status"
-  open={isDialogOpen}
-  onwa-after-hide={() => (isDialogOpen = false)}
+  open={isCreateDialogOpen}
+  onwa-after-hide={() => (isCreateDialogOpen = false)}
 >
-  <form
-    method="POST"
-    action="?/createStatus"
-    use:enhance={() => {
-      return async ({ result, update }) => {
-        await update()
-        if (result.type === 'success') {
-          isDialogOpen = false
-        }
-      }
-    }}
-  >
-    <Grid direction="column" gap="l">
-      {#if form?.error}
-        <wa-callout variant="danger">
-          <wa-icon slot="icon" name="circle-exclamation" variant="solid"></wa-icon>
-          {form.error}
-        </wa-callout>
-      {/if}
+  <StatusForm
+    defaultOrder={data.statuses.length}
+    {form}
+    oncancel={() => (isCreateDialogOpen = false)}
+    onsuccess={() => (isCreateDialogOpen = false)}
+  />
+</wa-dialog>
 
-      <wa-input
-        name="name"
-        label="Status Name"
-        placeholder="e.g. Backlog, In Progress, Done"
-        value={form?.name ?? ''}
-        required
-      ></wa-input>
-
-      <wa-input
-        name="order"
-        type="number"
-        label="Order"
-        placeholder={String(data.statuses.length)}
-        hint="Display order on the board (optional)"
-        min="0"
-        value={form?.order ?? ''}
-      ></wa-input>
-
-      <wa-input
-        name="color"
-        label="Color"
-        placeholder="#3b82f6"
-        hint="Hex color code (optional)"
-        value={form?.color ?? ''}
-      ></wa-input>
-
-      <Grid justify="end" gap="s">
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <wa-button variant="neutral" type="button" onclick={() => (isDialogOpen = false)}>
-          Cancel
-        </wa-button>
-        <wa-button type="submit" variant="brand">Create Status</wa-button>
-      </Grid>
-    </Grid>
-  </form>
+<wa-dialog
+  label="Edit Status"
+  open={!!editingStatus}
+  onwa-after-hide={() => (editingStatus = null)}
+>
+  {#if editingStatus}
+    <StatusForm
+      status={editingStatus}
+      defaultOrder={editingStatus.order}
+      {form}
+      oncancel={() => (editingStatus = null)}
+      onsuccess={() => (editingStatus = null)}
+    />
+  {/if}
 </wa-dialog>
