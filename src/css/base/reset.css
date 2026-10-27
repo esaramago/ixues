@@ -1,0 +1,69 @@
+html {
+  font-size: 62.5%;
+}
+
+body,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+button,
+ul,
+p,
+fieldset,
+blockquote {
+  margin: 0;
+}
+
+button,
+fieldset {
+  border: none;
+}
+
+ul,
+button,
+legend,
+fieldset {
+  padding: 0;
+}
+
+
+button {
+  background: none;
+}
+
+input,
+button,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  box-sizing: border-box;
+  color: inherit;
+}
+input,
+textarea,
+legend {
+  width: 100%;
+}
+
+code[contenteditable]:focus {
+  outline: none;
+}
+
+a,
+button {
+  color: inherit;
+}
+
+img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  width: 100%;
+}

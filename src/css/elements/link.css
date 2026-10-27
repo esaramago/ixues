@@ -1,0 +1,5 @@
+.c-link {
+  color: var(--wa-color-brand-default);
+  text-decoration: underline;
+  cursor: pointer;
+}

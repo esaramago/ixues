@@ -1,0 +1,13 @@
+.c-table {
+  width: 100%;
+  border-collapse: collapse;
+  td,
+  th {
+    border-bottom: 1px solid var(--wa-color-neutral-60);
+    padding: var(--wa-space-xs) var(--wa-space-s);
+  }
+  th {
+    text-align: start;
+    background-color: var(--wa-color-brand-20);
+  }
+}

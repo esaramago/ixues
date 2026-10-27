@@ -1,0 +1,34 @@
+h1,
+[data-appearance="h1"] {
+  font-size: var(--wa-font-size-3xl);
+  line-height: 1.1;
+}
+h2,
+[data-appearance="h2"] {
+  font-size: var(--wa-font-size-xl);
+  line-height: 1.25;
+}
+legend,
+h3,
+[data-appearance="h3"] {
+  font-weight: var(--wa-font-weight-bold);
+  font-size: var(--wa-font-size-l);
+}
+h4,
+[data-appearance="h4"] {
+  font-size: var(--wa-font-size-m);
+}
+h5,
+[data-appearance="h5"] {
+  font-size: var(--wa-font-size-m);
+  font-weight: var(--wa-font-weight-semibold);
+}
+h6,
+[data-appearance="h6"] {
+  font-size: var(--wa-font-size-s);
+  color: var(--wa-color-neutral-70);
+}
+[data-appearance="p"] {
+  font-size: var(--wa-font-size-m);
+  font-weight: var(--wa-font-weight-normal);
+}
