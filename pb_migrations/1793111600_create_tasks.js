@@ -34,6 +34,13 @@ migrate((app) => {
         maxSelect: 1
       },
       {
+        name: "assigned",
+        type: "relation",
+        collectionId: "_pb_users_auth_",
+        cascadeDelete: false,
+        maxSelect: 1
+      },
+      {
         name: "status",
         type: "relation",
         collectionId: statuses ? statuses.id : "statuses",

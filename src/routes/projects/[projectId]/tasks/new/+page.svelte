@@ -8,6 +8,7 @@
 <TaskForm
   project={data.project}
   statuses={data.statuses}
+  users={data.users}
   defaultStatus={data.defaultStatus}
   {form}
 />

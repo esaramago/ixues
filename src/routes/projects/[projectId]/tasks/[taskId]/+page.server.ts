@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
 import type { Task, TaskPriority } from '@/types/task'
+import type { User } from '@/types/user'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.user) {
@@ -11,7 +12,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
   try {
     const project = await locals.pb.collection('projects').getOne(params.projectId)
-    const task = await locals.pb.collection('tasks').getOne(params.taskId)
+    const task = await locals.pb.collection('tasks').getOne(params.taskId, {
+      expand: 'assigned'
+    })
 
     if (task.project !== params.projectId) {
       throw error(404, 'Task not found in this project')
@@ -28,10 +31,21 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       statuses = []
     }
 
+    let users: User[] = []
+    try {
+      const userRecords = await locals.pb.collection('users').getFullList({
+        sort: 'name,email'
+      })
+      users = structuredClone(userRecords) as unknown as User[]
+    } catch {
+      users = []
+    }
+
     return {
       project: structuredClone(project) as unknown as Project,
       task: structuredClone(task) as unknown as Task,
-      statuses
+      statuses,
+      users
     }
   } catch {
     throw error(404, 'Task not found')
@@ -49,6 +63,7 @@ export const actions: Actions = {
     const description = (data.get('description') as string)?.trim() || ''
     const priority = ((data.get('priority') as string)?.trim() || 'medium') as TaskPriority
     const status = (data.get('status') as string)?.trim() || ''
+    const assigned = (data.get('assigned') as string)?.trim() || ''
 
     if (!title) {
       return fail(400, {
@@ -56,7 +71,8 @@ export const actions: Actions = {
         title,
         description,
         priority,
-        status
+        status,
+        assigned
       })
     }
 
@@ -68,7 +84,8 @@ export const actions: Actions = {
         title,
         description: description || null,
         priority: selectedPriority,
-        status: status || null
+        status: status || null,
+        assigned: assigned || null
       })
     } catch (err: unknown) {
       const pbError = err as { status?: number; data?: { message?: string }; message?: string }
@@ -77,7 +94,8 @@ export const actions: Actions = {
         title,
         description,
         priority: selectedPriority,
-        status
+        status,
+        assigned
       })
     }
 

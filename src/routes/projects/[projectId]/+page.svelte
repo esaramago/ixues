@@ -242,11 +242,21 @@
                         {#if task.description}
                           <small>{task.description}</small>
                         {/if}
-                        {#if task.priority}
-                          <Grid justify="end">
-                            <wa-badge size="small" variant={getPriorityVariant(task.priority)}>
-                              {task.priority}
-                            </wa-badge>
+                        {#if task.priority || task.expand?.assigned}
+                          <Grid justify="space-between" align="center">
+                            {#if task.expand?.assigned}
+                              <small>
+                                <wa-icon name="user" variant="solid"></wa-icon>
+                                {task.expand.assigned.name || task.expand.assigned.email}
+                              </small>
+                            {:else}
+                              <span></span>
+                            {/if}
+                            {#if task.priority}
+                              <wa-badge size="small" variant={getPriorityVariant(task.priority)}>
+                                {task.priority}
+                              </wa-badge>
+                            {/if}
                           </Grid>
                         {/if}
                       </Grid>
@@ -304,11 +314,21 @@
                       {#if task.description}
                         <small>{task.description}</small>
                       {/if}
-                      {#if task.priority}
-                        <Grid justify="end">
-                          <wa-badge size="small" variant={getPriorityVariant(task.priority)}>
-                            {task.priority}
-                          </wa-badge>
+                      {#if task.priority || task.expand?.assigned}
+                        <Grid justify="space-between" align="center">
+                          {#if task.expand?.assigned}
+                            <small>
+                              <wa-icon name="user" variant="solid"></wa-icon>
+                              {task.expand.assigned.name || task.expand.assigned.email}
+                            </small>
+                          {:else}
+                            <span></span>
+                          {/if}
+                          {#if task.priority}
+                            <wa-badge size="small" variant={getPriorityVariant(task.priority)}>
+                              {task.priority}
+                            </wa-badge>
+                          {/if}
                         </Grid>
                       {/if}
                     </Grid>

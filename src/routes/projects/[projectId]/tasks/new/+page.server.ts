@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
 import type { TaskPriority } from '@/types/task'
+import type { User } from '@/types/user'
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
   if (!locals.user) {
@@ -31,10 +32,21 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
       ? statusParam
       : statuses[0]?.id || ''
 
+    let users: User[] = []
+    try {
+      const userRecords = await locals.pb.collection('users').getFullList({
+        sort: 'name,email',
+      })
+      users = structuredClone(userRecords) as unknown as User[]
+    } catch {
+      users = []
+    }
+
     return {
       project: structuredClone(project) as unknown as Project,
       statuses,
       defaultStatus,
+      users,
     }
   } catch {
     throw error(404, 'Project not found')
@@ -53,6 +65,7 @@ export const actions: Actions = {
     const priority = ((data.get('priority') as string)?.trim() ||
       'medium') as TaskPriority
     const status = (data.get('status') as string)?.trim() || ''
+    const assigned = (data.get('assigned') as string)?.trim() || ''
 
     if (!title) {
       return fail(400, {
@@ -61,6 +74,7 @@ export const actions: Actions = {
         description,
         priority,
         status,
+        assigned,
       })
     }
 
@@ -99,6 +113,7 @@ export const actions: Actions = {
         description: description || null,
         priority: selectedPriority,
         status: status || null,
+        assigned: assigned || null,
         project: params.projectId,
         user: locals.user.id,
       })
@@ -117,6 +132,7 @@ export const actions: Actions = {
         description,
         priority: selectedPriority,
         status,
+        assigned,
       })
     }
 

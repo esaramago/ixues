@@ -9,6 +9,7 @@
   project={data.project}
   task={data.task}
   statuses={data.statuses}
+  users={data.users}
   {form}
 />
 

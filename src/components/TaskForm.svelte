@@ -4,6 +4,7 @@
   import type { Project } from '@/types/project'
   import type { Status } from '@/types/status'
   import type { Task, TaskPriority } from '@/types/task'
+  import type { User } from '@/types/user'
 
   export interface TaskFormData {
     error?: string
@@ -11,11 +12,13 @@
     description?: string
     priority?: TaskPriority
     status?: string
+    assigned?: string
   }
 
   interface Props {
     project: Pick<Project, 'id' | 'name'>
     statuses: Status[]
+    users?: User[]
     task?: Task | null
     defaultStatus?: string
     form?: TaskFormData | null
@@ -31,6 +34,7 @@
   let {
     project,
     statuses,
+    users = [],
     task = null,
     defaultStatus = '',
     form = null,
@@ -56,6 +60,7 @@
 
   let priority = $state<TaskPriority>('medium')
   let status = $state('')
+  let assigned = $state('')
   let prevKey = $state('')
   let isConfirmOpen = $state(false)
 
@@ -65,12 +70,16 @@
       prevKey = currentKey
       priority = task?.priority || 'medium'
       status = task ? (task.status || '') : (defaultStatus || statuses[0]?.id || '')
+      assigned = task?.assigned || ''
     }
     if (form?.priority) {
       priority = form.priority
     }
     if (form?.status !== undefined) {
       status = form.status
+    }
+    if (form?.assigned !== undefined) {
+      assigned = form.assigned
     }
   })
 
@@ -80,6 +89,10 @@
 
   function handleStatusChange(event: Event) {
     status = (event.target as HTMLInputElement).value
+  }
+
+  function handleAssignedChange(event: Event) {
+    assigned = (event.target as HTMLInputElement).value
   }
 </script>
 
@@ -151,6 +164,20 @@
                 {/each}
               </wa-select>
             {/if}
+
+            <wa-select
+              name="assigned"
+              label="Assigned"
+              value={assigned}
+              onchange={handleAssignedChange}
+            >
+              <wa-option value="">Unassigned</wa-option>
+              {#each users as userItem (userItem.id)}
+                <wa-option value={userItem.id}>
+                  {userItem.name || userItem.email || userItem.id}
+                </wa-option>
+              {/each}
+            </wa-select>
           </Grid>
 
           {#if isEdit && showDelete}
