@@ -1,4 +1,4 @@
-# Issues
+# Ixues
 
 An issue and task tracking web application.
 

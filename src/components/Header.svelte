@@ -8,7 +8,7 @@
     <a href="/">
       <Grid align="center" gap="s">
         <wa-icon name="circle-dot" variant="solid"></wa-icon>
-        <strong>Issues</strong>
+        <strong>Ixues</strong>
       </Grid>
     </a>
 

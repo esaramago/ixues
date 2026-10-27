@@ -4,6 +4,6 @@
 
 <div class="l-container">
   <Grid tag="footer" direction="column" align="center">
-    <p>© {new Date().getFullYear()} Issues.</p>
+    <p>© {new Date().getFullYear()} Ixues.</p>
   </Grid>
 </div>

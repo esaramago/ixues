@@ -8,11 +8,11 @@
 <Grid direction="column" gap="xl">
   <Grid direction="column">
     <Grid align="center" gap="s">
-      <wa-badge variant="brand">Issues</wa-badge>
+      <wa-badge variant="brand">Ixues</wa-badge>
       <wa-badge variant="neutral">v0.0.1</wa-badge>
     </Grid>
 
-    <h1>Issues</h1>
+    <h1>Ixues</h1>
     <p>
       An issue and task tracking web application built with SvelteKit, PocketBase, and WebAwesome.
     </p>

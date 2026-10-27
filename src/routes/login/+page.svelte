@@ -10,7 +10,7 @@
     <Grid direction="column" gap="l">
       <Grid direction="column" gap="xs">
         <h2>Sign in</h2>
-        <p>Enter your credentials to access Issues.</p>
+        <p>Enter your credentials to access Ixues.</p>
       </Grid>
 
       {#if form?.error}

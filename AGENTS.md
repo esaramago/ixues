@@ -1,5 +1,5 @@
 ## Purpose
-Issues is an issue and task tracking web application.
+Ixues is an issue and task tracking web application.
 
 ## Description
 Esta app faz a sincronização de outras ferramentas com issue tracking (Jira, GitHub, etc) ou utiliza projetos internos.
@@ -43,6 +43,7 @@ Esta app faz a sincronização de outras ferramentas com issue tracking (Jira, G
 - Code comments must be in English.
 - README.md and AGENTS.md must be in English.
 - Do not commit any changes.
+- Files use 2 spaces indentation
 
 ## Notes
 - This project is hosted on Coolify.
