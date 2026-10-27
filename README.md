@@ -23,17 +23,13 @@ pnpm install
    cp .env.example .env
    ```
 
-2. (Optional) Start PocketBase via Docker Compose:
-   ```bash
-   docker compose up -d pocketbase
-   ```
-   The PocketBase Admin UI will be available at: `http://localhost:8090/_/`
-
-3. Start the SvelteKit development server:
+2. Start the development server (PocketBase will automatically start in the background):
    ```bash
    pnpm dev
    ```
-   The application will be running at `http://localhost:5173`.
+
+   - **Frontend:** `http://localhost:5173`
+   - **PocketBase Admin UI:** `http://localhost:8090/_/`
 
 ---
 
