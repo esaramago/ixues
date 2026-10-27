@@ -4,6 +4,12 @@ import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
 import type { Task, TaskPriority } from '@/types/task'
 import type { User } from '@/types/user'
+import {
+  fetchGitHubIssue,
+  getGitHubStatuses,
+  updateGitHubIssue
+} from '@/lib/github'
+import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.user) {
@@ -11,12 +17,43 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   }
 
   try {
-    const project = await locals.pb.collection('projects').getOne(params.projectId)
-    const task = await locals.pb.collection('tasks').getOne(params.taskId, {
+    const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+    const project = structuredClone(projectRecord) as unknown as Project
+
+    if (project.type === 'sync' && project.provider === 'github') {
+      if (!project.repo_url) {
+        throw error(400, 'Project repository URL is missing')
+      }
+
+      const decryptedToken = decryptToken(project.token)
+      const task = await fetchGitHubIssue(
+        project.repo_url,
+        params.taskId,
+        project.id,
+        locals.user.id,
+        decryptedToken
+      )
+
+      if (!task) {
+        throw error(404, 'GitHub issue not found')
+      }
+
+      const statuses = getGitHubStatuses(project.id, locals.user.id)
+      const users: User[] = task.expand?.assigned ? [task.expand.assigned] : []
+
+      return {
+        project: sanitizeProject(project),
+        task,
+        statuses,
+        users
+      }
+    }
+
+    const taskRecord = await locals.pb.collection('tasks').getOne(params.taskId, {
       expand: 'assigned'
     })
 
-    if (task.project !== params.projectId) {
+    if (taskRecord.project !== params.projectId) {
       throw error(404, 'Task not found in this project')
     }
 
@@ -42,12 +79,15 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     }
 
     return {
-      project: structuredClone(project) as unknown as Project,
-      task: structuredClone(task) as unknown as Task,
+      project: sanitizeProject(project),
+      task: structuredClone(taskRecord) as unknown as Task,
       statuses,
       users
     }
-  } catch {
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'status' in err) {
+      throw err
+    }
     throw error(404, 'Task not found')
   }
 }
@@ -56,6 +96,14 @@ export const actions: Actions = {
   update: async ({ params, request, locals }) => {
     if (!locals.user) {
       throw redirect(303, '/login')
+    }
+
+    let project: Project
+    try {
+      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      project = structuredClone(projectRecord) as unknown as Project
+    } catch {
+      throw error(404, 'Project not found')
     }
 
     const data = await request.formData()
@@ -78,6 +126,45 @@ export const actions: Actions = {
 
     const validPriorities: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
     const selectedPriority: TaskPriority = validPriorities.includes(priority) ? priority : 'medium'
+
+    if (project.type === 'sync' && project.provider === 'github') {
+      if (!project.repo_url) {
+        return fail(400, {
+          error: 'Project repository URL is missing.',
+          title,
+          description,
+          priority: selectedPriority,
+          status,
+          assigned
+        })
+      }
+
+      try {
+        const decryptedToken = decryptToken(project.token)
+        await updateGitHubIssue(
+          project.repo_url,
+          params.taskId,
+          {
+            title,
+            body: description,
+            state: status === 'closed' ? 'closed' : 'open'
+          },
+          decryptedToken
+        )
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to update issue on GitHub.'
+        return fail(500, {
+          error: message,
+          title,
+          description,
+          priority: selectedPriority,
+          status,
+          assigned
+        })
+      }
+
+      throw redirect(303, `/projects/${params.projectId}`)
+    }
 
     try {
       await locals.pb.collection('tasks').update(params.taskId, {
@@ -105,6 +192,20 @@ export const actions: Actions = {
   delete: async ({ params, locals }) => {
     if (!locals.user) {
       throw redirect(303, '/login')
+    }
+
+    let project: Project
+    try {
+      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      project = structuredClone(projectRecord) as unknown as Project
+    } catch {
+      throw error(404, 'Project not found')
+    }
+
+    if (project.type === 'sync' && project.provider === 'github') {
+      return fail(400, {
+        error: 'GitHub issues cannot be deleted via API. You can close the issue instead.'
+      })
     }
 
     try {

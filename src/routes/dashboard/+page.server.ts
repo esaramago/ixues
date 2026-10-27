@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit'
 import type { PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
+import { sanitizeProjects } from '@/lib/server/crypto'
 
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.user) {
@@ -11,7 +12,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     const projects = await locals.pb.collection('projects').getFullList()
 
     return {
-      projects: structuredClone(projects) as unknown as Project[],
+      projects: sanitizeProjects(structuredClone(projects) as unknown as Project[]),
     }
   } catch (err) {
     console.error('Error fetching projects:', err)

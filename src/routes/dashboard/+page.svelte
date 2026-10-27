@@ -50,7 +50,11 @@
             <small>{project.repo_url}</small>
           {/if}
 
-          <Grid justify="end">
+          <Grid justify="end" gap="s">
+            <wa-button href={`/projects/${project.id}/edit`} size="small" variant="neutral">
+              <wa-icon slot="start" name="pen-to-square" variant="solid"></wa-icon>
+              Edit
+            </wa-button>
             <wa-button href={`/projects/${project.id}`} size="small" variant="neutral">
               Open
             </wa-button>

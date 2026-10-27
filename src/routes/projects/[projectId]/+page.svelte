@@ -24,7 +24,7 @@
         if (found) {
           editingStatus = found
         }
-      } else {
+      } else if (data.project.type === 'local' && ('name' in form || 'order' in form)) {
         isCreateDialogOpen = true
       }
     }
@@ -142,6 +142,11 @@
         </wa-button>
       {/if}
 
+      <wa-button href={`/projects/${data.project.id}/edit`} size="small" variant="neutral">
+        <wa-icon slot="start" name="pen-to-square" variant="solid"></wa-icon>
+        Edit Project
+      </wa-button>
+
       <wa-button href="/dashboard" size="small" variant="neutral">
         <wa-icon slot="start" name="arrow-left" variant="solid"></wa-icon>
         Dashboard
@@ -160,6 +165,20 @@
     </wa-card>
   {/if}
 
+  {#if data.syncError}
+    <wa-callout variant="danger">
+      <wa-icon slot="icon" name="circle-exclamation" variant="solid"></wa-icon>
+      {data.syncError}
+    </wa-callout>
+  {/if}
+
+  {#if form?.error && !('statusId' in form) && !('name' in form)}
+    <wa-callout variant="danger">
+      <wa-icon slot="icon" name="circle-exclamation" variant="solid"></wa-icon>
+      {form.error}
+    </wa-callout>
+  {/if}
+
   {#if data.statuses.length === 0}
     <wa-card>
       <Grid direction="column" align="center" gap="s">
@@ -175,7 +194,7 @@
       </Grid>
     </wa-card>
   {:else}
-    <Grid wrap={true} break="small">
+    <Grid break="small">
       {#each data.statuses as status (status.id)}
         {@const statusTasks = tasks.filter((task) => task.status === status.id)}
         <!-- svelte-ignore a11y_no_static_element_interactions -->

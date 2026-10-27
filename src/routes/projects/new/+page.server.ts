@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
+import { encryptToken } from '@/lib/server/crypto'
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
@@ -18,6 +19,7 @@ export const actions: Actions = {
 		const type = ((data.get('type') as string)?.trim() || 'local') as 'local' | 'sync'
 		const provider = (data.get('provider') as string)?.trim() || ''
 		const repoUrl = (data.get('repoUrl') as string)?.trim() || ''
+		const token = (data.get('token') as string)?.trim() || ''
 
 		if (!name) {
 			return fail(400, {
@@ -25,7 +27,8 @@ export const actions: Actions = {
 				name,
 				type,
 				provider,
-				repoUrl
+				repoUrl,
+				token
 			})
 		}
 
@@ -36,7 +39,8 @@ export const actions: Actions = {
 					name,
 					type,
 					provider,
-					repoUrl
+					repoUrl,
+					token
 				})
 			}
 
@@ -46,7 +50,8 @@ export const actions: Actions = {
 					name,
 					type,
 					provider,
-					repoUrl
+					repoUrl,
+					token
 				})
 			}
 
@@ -58,7 +63,8 @@ export const actions: Actions = {
 					name,
 					type,
 					provider,
-					repoUrl
+					repoUrl,
+					token
 				})
 			}
 		}
@@ -69,6 +75,7 @@ export const actions: Actions = {
 				type,
 				provider: type === 'sync' ? provider : null,
 				repo_url: type === 'sync' ? repoUrl : null,
+				token: type === 'sync' && token ? encryptToken(token) : null,
 				user: locals.user.id
 			})
 		} catch (err: unknown) {
@@ -78,7 +85,8 @@ export const actions: Actions = {
 				name,
 				type,
 				provider,
-				repoUrl
+				repoUrl,
+				token
 			})
 		}
 

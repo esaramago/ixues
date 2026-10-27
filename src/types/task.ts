@@ -15,6 +15,8 @@ export interface Task {
   project: string
   user: string
   assigned?: string | null
+  url?: string | null
+  labels?: string[]
   expand?: {
     assigned?: User
     user?: User

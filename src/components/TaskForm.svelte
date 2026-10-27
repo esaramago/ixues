@@ -16,7 +16,7 @@
   }
 
   interface Props {
-    project: Pick<Project, 'id' | 'name'>
+    project: Pick<Project, 'id' | 'name'> & Partial<Pick<Project, 'type' | 'provider' | 'repo_url'>>
     statuses: Status[]
     users?: User[]
     task?: Task | null
@@ -57,6 +57,14 @@
   let resolvedAction = $derived(action ?? (isEdit ? '?/update' : undefined))
   let resolvedCancelHref = $derived(cancelHref ?? `/projects/${project.id}`)
   let resolvedSubmitLabel = $derived(submitLabel ?? (isEdit ? 'Save Changes' : 'Create Task'))
+
+  let isSyncTask = $derived(project.type === 'sync' || !!task?.url)
+  let originalTaskUrl = $derived(
+    task?.url ||
+      (isSyncTask && project.repo_url && (task?.number || task?.id)
+        ? `${project.repo_url.replace(/\/+$/, '')}/issues/${task.number || task.id}`
+        : null)
+  )
 
   let priority = $state<TaskPriority>('medium')
   let status = $state('')
@@ -99,10 +107,41 @@
 <Grid direction="column" gap="xl" align="center">
   <wa-card>
     <Grid direction="column" gap="l">
-      <Grid direction="column" gap="xs">
-        <h2>{resolvedHeading}</h2>
-        <p>{resolvedSubheading}</p>
+      <Grid justify="space-between" align="center" wrap={true} gap="s">
+        <Grid direction="column" gap="xs">
+          <h2>{resolvedHeading}</h2>
+          <p>{resolvedSubheading}</p>
+        </Grid>
+
+        {#if originalTaskUrl}
+          <wa-button
+            href={originalTaskUrl}
+            target="_blank"
+            rel="noreferrer"
+            variant="neutral"
+            size="small"
+          >
+            {#if project.provider === 'github'}
+              <wa-icon slot="start" family="brands" name="github"></wa-icon>
+            {:else if project.provider === 'jira'}
+              <wa-icon slot="start" family="brands" name="jira"></wa-icon>
+            {:else}
+              <wa-icon slot="start" name="link" variant="solid"></wa-icon>
+            {/if}
+            Original Task
+            <wa-icon slot="end" name="arrow-up-right-from-square" variant="solid"></wa-icon>
+          </wa-button>
+        {/if}
       </Grid>
+
+      {#if originalTaskUrl}
+        <Grid align="center" gap="s">
+          <wa-icon name="link" variant="solid"></wa-icon>
+          <a href={originalTaskUrl} target="_blank" rel="noreferrer">
+            {originalTaskUrl}
+          </a>
+        </Grid>
+      {/if}
 
       {#if form?.error}
         <wa-callout variant="danger">

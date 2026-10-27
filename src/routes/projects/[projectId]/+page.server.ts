@@ -3,6 +3,12 @@ import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
 import type { Task } from '@/types/task'
+import {
+  fetchGitHubIssues,
+  getGitHubStatuses,
+  updateGitHubIssueState
+} from '@/lib/github'
+import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.user) {
@@ -10,29 +16,51 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   }
 
   try {
-    const project = await locals.pb.collection('projects').getOne(params.projectId)
-    const statuses = await locals.pb.collection('statuses').getFullList({
-      filter: `project = "${params.projectId}"`,
-      sort: 'order'
-    })
+    const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+    const project = structuredClone(projectRecord) as unknown as Project
 
+    let statuses: Status[] = []
     let tasks: Task[] = []
-    try {
-      const taskRecords = await locals.pb.collection('tasks').getFullList({
+    let syncError: string | null = null
+
+    if (project.type === 'sync' && project.provider === 'github') {
+      statuses = getGitHubStatuses(project.id, locals.user.id)
+
+      if (project.repo_url) {
+        try {
+          const decryptedToken = decryptToken(project.token)
+          tasks = await fetchGitHubIssues(project.repo_url, project.id, locals.user.id, decryptedToken)
+        } catch (err: unknown) {
+          syncError = err instanceof Error ? err.message : 'Failed to fetch issues from GitHub'
+          console.error('Error fetching GitHub issues:', syncError)
+          tasks = []
+        }
+      }
+    } else {
+      const statusRecords = await locals.pb.collection('statuses').getFullList({
         filter: `project = "${params.projectId}"`,
-        sort: 'number',
-        expand: 'assigned'
+        sort: 'order'
       })
-      tasks = structuredClone(taskRecords) as unknown as Task[]
-    } catch (err) {
-      console.error('Failed to load tasks:', err)
-      tasks = []
+      statuses = structuredClone(statusRecords) as unknown as Status[]
+
+      try {
+        const taskRecords = await locals.pb.collection('tasks').getFullList({
+          filter: `project = "${params.projectId}"`,
+          sort: 'number',
+          expand: 'assigned'
+        })
+        tasks = structuredClone(taskRecords) as unknown as Task[]
+      } catch (err) {
+        console.error('Failed to load tasks:', err)
+        tasks = []
+      }
     }
 
     return {
-      project: structuredClone(project) as unknown as Project,
-      statuses: structuredClone(statuses) as unknown as Status[],
-      tasks
+      project: sanitizeProject(project),
+      statuses,
+      tasks,
+      syncError
     }
   } catch {
     throw error(404, 'Project not found')
@@ -201,12 +229,42 @@ export const actions: Actions = {
       throw redirect(303, '/login')
     }
 
+    let project: Project
+    try {
+      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      project = structuredClone(projectRecord) as unknown as Project
+    } catch {
+      throw error(404, 'Project not found')
+    }
+
     const data = await request.formData()
     const taskId = (data.get('taskId') as string)?.trim()
     const statusId = (data.get('statusId') as string)?.trim() || null
 
     if (!taskId) {
       return fail(400, { error: 'Task ID is required.' })
+    }
+
+    if (project.type === 'sync' && project.provider === 'github') {
+      if (!project.repo_url) {
+        return fail(400, { error: 'Project repository URL is missing.' })
+      }
+      if (statusId !== 'open' && statusId !== 'closed') {
+        return fail(400, {
+          error: 'Invalid status for GitHub issue. Expected "open" or "closed".'
+        })
+      }
+
+      try {
+        const decryptedToken = decryptToken(project.token)
+        await updateGitHubIssueState(project.repo_url, taskId, statusId, decryptedToken)
+        return {
+          success: true
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to update GitHub issue status.'
+        return fail(500, { error: message })
+      }
     }
 
     try {

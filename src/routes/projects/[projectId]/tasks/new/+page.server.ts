@@ -4,6 +4,11 @@ import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
 import type { TaskPriority } from '@/types/task'
 import type { User } from '@/types/user'
+import {
+  createGitHubIssue,
+  getGitHubStatuses
+} from '@/lib/github'
+import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
   if (!locals.user) {
@@ -11,9 +16,25 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
   }
 
   try {
-    const project = await locals.pb
+    const projectRecord = await locals.pb
       .collection('projects')
       .getOne(params.projectId)
+    const project = structuredClone(projectRecord) as unknown as Project
+
+    if (project.type === 'sync' && project.provider === 'github') {
+      const statuses = getGitHubStatuses(project.id, locals.user.id)
+      const statusParam = url.searchParams.get('status') || ''
+      const defaultStatus = statuses.some((s) => s.id === statusParam)
+        ? statusParam
+        : 'open'
+
+      return {
+        project: sanitizeProject(project),
+        statuses,
+        defaultStatus,
+        users: []
+      }
+    }
 
     let statuses: Status[] = []
     try {
@@ -43,7 +64,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
     }
 
     return {
-      project: structuredClone(project) as unknown as Project,
+      project: sanitizeProject(project),
       statuses,
       defaultStatus,
       users,
@@ -57,6 +78,14 @@ export const actions: Actions = {
   default: async ({ params, request, locals }) => {
     if (!locals.user) {
       throw redirect(303, '/login')
+    }
+
+    let project: Project
+    try {
+      const projectRecord = await locals.pb.collection('projects').getOne(params.projectId)
+      project = structuredClone(projectRecord) as unknown as Project
+    } catch {
+      throw error(404, 'Project not found')
     }
 
     const data = await request.formData()
@@ -82,6 +111,45 @@ export const actions: Actions = {
     const selectedPriority: TaskPriority = validPriorities.includes(priority)
       ? priority
       : 'medium'
+
+    if (project.type === 'sync' && project.provider === 'github') {
+      if (!project.repo_url) {
+        return fail(400, {
+          error: 'Project repository URL is missing.',
+          title,
+          description,
+          priority: selectedPriority,
+          status,
+          assigned,
+        })
+      }
+
+      try {
+        const decryptedToken = decryptToken(project.token)
+        await createGitHubIssue(
+          project.repo_url,
+          {
+            title,
+            body: description
+          },
+          params.projectId,
+          locals.user.id,
+          decryptedToken
+        )
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to create issue on GitHub.'
+        return fail(500, {
+          error: message,
+          title,
+          description,
+          priority: selectedPriority,
+          status,
+          assigned,
+        })
+      }
+
+      throw redirect(303, `/projects/${params.projectId}`)
+    }
 
     let nextNumber = 1
     try {
