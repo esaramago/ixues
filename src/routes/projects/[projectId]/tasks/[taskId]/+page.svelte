@@ -10,6 +10,7 @@
   task={data.task}
   statuses={data.statuses}
   users={data.users}
+  availableLabels={data.availableLabels}
   {form}
 />
 

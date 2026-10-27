@@ -268,6 +268,40 @@ export async function updateGitHubIssueState(
   }
 }
 
+export async function fetchGitHubLabels(
+  repoUrl: string,
+  token?: string | null
+): Promise<string[]> {
+  const repoInfo = parseGitHubRepo(repoUrl)
+  if (!repoInfo) {
+    return []
+  }
+
+  const { owner, repo } = repoInfo
+  const url = `https://api.github.com/repos/${owner}/${repo}/labels?per_page=100`
+
+  try {
+    const response = await fetch(url, {
+      headers: getGitHubHeaders(token)
+    })
+
+    if (!response.ok) {
+      return []
+    }
+
+    const data = (await response.json()) as Array<{ name?: string }>
+    if (Array.isArray(data)) {
+      return data
+        .map((l) => (typeof l === 'string' ? l : l.name || ''))
+        .filter(Boolean)
+    }
+  } catch (err) {
+    console.error('Failed to fetch GitHub labels:', err)
+  }
+
+  return []
+}
+
 export async function updateGitHubIssue(
   repoUrl: string,
   issueNumber: number | string,
@@ -275,6 +309,7 @@ export async function updateGitHubIssue(
     title?: string
     body?: string
     state?: 'open' | 'closed'
+    labels?: string[]
   },
   token?: string | null
 ): Promise<void> {
@@ -311,6 +346,7 @@ export async function createGitHubIssue(
   data: {
     title: string
     body?: string
+    labels?: string[]
   },
   projectId: string,
   userId: string,

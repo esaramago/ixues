@@ -76,11 +76,18 @@
           <wa-avatar initials={initials} title={task.expand.assigned.name || task.expand.assigned.email}></wa-avatar>
         {/if}
       </Grid>
-      <Grid gap="xs">
+      <Grid gap="xs" wrap={true}>
         {#if task.priority}
           <wa-badge size="s" variant={getPriorityVariant(task.priority)}>
             {task.priority}
           </wa-badge>
+        {/if}
+        {#if task.labels && task.labels.length > 0}
+          {#each task.labels as label (label)}
+            <wa-badge size="s" variant="neutral">
+              {label}
+            </wa-badge>
+          {/each}
         {/if}
       </Grid>
     </Grid>

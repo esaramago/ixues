@@ -2,10 +2,11 @@ import { error, fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
-import type { TaskPriority } from '@/types/task'
+import { DEFAULT_LOCAL_LABELS, type TaskPriority } from '@/types/task'
 import type { User } from '@/types/user'
 import {
   createGitHubIssue,
+  fetchGitHubLabels,
   getGitHubStatuses
 } from '@/lib/github'
 import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
@@ -27,11 +28,22 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
         ? statusParam
         : 'open'
 
+      let availableLabels: string[] = []
+      if (project.repo_url) {
+        try {
+          const decryptedToken = decryptToken(project.token)
+          availableLabels = await fetchGitHubLabels(project.repo_url, decryptedToken)
+        } catch (err) {
+          console.error('Failed to fetch GitHub labels:', err)
+        }
+      }
+
       return {
         project: sanitizeProject(project),
         statuses,
         defaultStatus,
-        users: []
+        users: [],
+        availableLabels
       }
     }
 
@@ -67,6 +79,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
       statuses,
       defaultStatus,
       users,
+      availableLabels: [...DEFAULT_LOCAL_LABELS]
     }
   } catch {
     throw error(404, 'Project not found')
@@ -94,6 +107,24 @@ export const actions: Actions = {
       'medium') as TaskPriority
     const status = (data.get('status') as string)?.trim() || ''
     const assigned = (data.get('assigned') as string)?.trim() || ''
+    const rawLabels = data.getAll('labels')
+    const labels = Array.from(
+      new Set(
+        rawLabels
+          .flatMap((item) => {
+            if (typeof item === 'string') {
+              try {
+                const parsed = JSON.parse(item)
+                if (Array.isArray(parsed)) return parsed.map(String)
+              } catch {}
+              return [item]
+            }
+            return []
+          })
+          .map((s) => s.trim())
+          .filter(Boolean)
+      )
+    )
 
     if (!title) {
       return fail(400, {
@@ -103,6 +134,7 @@ export const actions: Actions = {
         priority,
         status,
         assigned,
+        labels,
       })
     }
 
@@ -120,6 +152,7 @@ export const actions: Actions = {
           priority: selectedPriority,
           status,
           assigned,
+          labels,
         })
       }
 
@@ -129,7 +162,8 @@ export const actions: Actions = {
           project.repo_url,
           {
             title,
-            body: description
+            body: description,
+            labels
           },
           project.id,
           locals.user.id,
@@ -144,6 +178,7 @@ export const actions: Actions = {
           priority: selectedPriority,
           status,
           assigned,
+          labels,
         })
       }
 
@@ -183,6 +218,7 @@ export const actions: Actions = {
         priority: selectedPriority,
         status: status || null,
         assigned: assigned || null,
+        labels,
         project: project.id,
         user: locals.user.id,
       })
@@ -202,6 +238,7 @@ export const actions: Actions = {
         priority: selectedPriority,
         status,
         assigned,
+        labels,
       })
     }
 

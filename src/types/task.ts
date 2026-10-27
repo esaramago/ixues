@@ -3,6 +3,16 @@ import type { Status } from '@/types/status'
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
 
+export const DEFAULT_LOCAL_LABELS = [
+  'bug',
+  'enhancement',
+  'feature',
+  'design',
+  'chore'
+] as const
+
+export type LocalTaskLabel = (typeof DEFAULT_LOCAL_LABELS)[number]
+
 export interface Task {
   id: string
   created?: string

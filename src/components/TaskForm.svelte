@@ -3,7 +3,7 @@
   import Grid from '@/components/Grid.svelte'
   import type { Project } from '@/types/project'
   import type { Status } from '@/types/status'
-  import type { Task, TaskPriority } from '@/types/task'
+  import { DEFAULT_LOCAL_LABELS, type Task, type TaskPriority } from '@/types/task'
   import type { User } from '@/types/user'
 
   export interface TaskFormData {
@@ -13,12 +13,14 @@
     priority?: TaskPriority
     status?: string
     assigned?: string
+    labels?: string[]
   }
 
   interface Props {
     project: Pick<Project, 'id' | 'name'> & Partial<Pick<Project, 'type' | 'provider' | 'repo_url' | 'slug'>>
     statuses: Status[]
     users?: User[]
+    availableLabels?: string[]
     task?: Task | null
     defaultStatus?: string
     form?: TaskFormData | null
@@ -35,6 +37,7 @@
     project,
     statuses,
     users = [],
+    availableLabels = [],
     task = null,
     defaultStatus = '',
     form = null,
@@ -69,8 +72,26 @@
   let priority = $state<TaskPriority>('medium')
   let status = $state('')
   let assigned = $state('')
+  let selectedLabels = $state<string[]>([])
   let prevKey = $state('')
   let isConfirmOpen = $state(false)
+
+  let allLabelOptions = $derived.by(() => {
+    const list: string[] = []
+    const sourceList =
+      availableLabels.length > 0
+        ? availableLabels
+        : project.type === 'local'
+          ? [...DEFAULT_LOCAL_LABELS]
+          : []
+    for (const name of sourceList) {
+      if (name && !list.includes(name)) list.push(name)
+    }
+    for (const name of selectedLabels) {
+      if (name && !list.includes(name)) list.push(name)
+    }
+    return list
+  })
 
   $effect(() => {
     const currentKey = task?.id ?? `new-${defaultStatus}`
@@ -79,6 +100,7 @@
       priority = task?.priority || 'medium'
       status = task ? (task.status || '') : (defaultStatus || statuses[0]?.id || '')
       assigned = task?.assigned || ''
+      selectedLabels = Array.isArray(task?.labels) ? [...task.labels] : []
     }
     if (form?.priority) {
       priority = form.priority
@@ -88,6 +110,9 @@
     }
     if (form?.assigned !== undefined) {
       assigned = form.assigned
+    }
+    if (form?.labels !== undefined) {
+      selectedLabels = form.labels
     }
   })
 
@@ -101,6 +126,17 @@
 
   function handleAssignedChange(event: Event) {
     assigned = (event.target as HTMLInputElement).value
+  }
+
+  function handleLabelsChange(event: Event) {
+    const target = event.target as { value?: unknown }
+    if (Array.isArray(target.value)) {
+      selectedLabels = target.value as string[]
+    } else if (typeof target.value === 'string' && target.value) {
+      selectedLabels = [target.value]
+    } else {
+      selectedLabels = []
+    }
   }
 </script>
 
@@ -218,6 +254,21 @@
               {/each}
             </wa-select>
           </Grid>
+
+          <wa-select
+            name="labels"
+            label="Labels"
+            multiple
+            with-clear
+            value={selectedLabels}
+            onchange={handleLabelsChange}
+          >
+            {#each allLabelOptions as labelName (labelName)}
+              <wa-option value={labelName} selected={selectedLabels.includes(labelName)}>
+                {labelName}
+              </wa-option>
+            {/each}
+          </wa-select>
 
           {#if isEdit && showDelete}
             <Grid justify="space-between" align="center">

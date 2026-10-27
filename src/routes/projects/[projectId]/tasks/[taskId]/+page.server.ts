@@ -2,10 +2,11 @@ import { error, fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
-import type { Task, TaskPriority } from '@/types/task'
+import { DEFAULT_LOCAL_LABELS, type Task, type TaskPriority } from '@/types/task'
 import type { User } from '@/types/user'
 import {
   fetchGitHubIssue,
+  fetchGitHubLabels,
   getGitHubStatuses,
   updateGitHubIssue
 } from '@/lib/github'
@@ -42,11 +43,22 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       const statuses = getGitHubStatuses(project.id, locals.user.id)
       const users: User[] = task.expand?.assigned ? [task.expand.assigned] : []
 
+      let availableLabels: string[] = []
+      if (project.repo_url) {
+        try {
+          const decryptedToken = decryptToken(project.token)
+          availableLabels = await fetchGitHubLabels(project.repo_url, decryptedToken)
+        } catch (err) {
+          console.error('Failed to load GitHub labels:', err)
+        }
+      }
+
       return {
         project: sanitizeProject(project),
         task,
         statuses,
-        users
+        users,
+        availableLabels
       }
     }
 
@@ -83,7 +95,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       project: sanitizeProject(project),
       task: structuredClone(taskRecord) as unknown as Task,
       statuses,
-      users
+      users,
+      availableLabels: [...DEFAULT_LOCAL_LABELS]
     }
   } catch (err: unknown) {
     if (err && typeof err === 'object' && 'status' in err) {
@@ -113,6 +126,24 @@ export const actions: Actions = {
     const priority = ((data.get('priority') as string)?.trim() || 'medium') as TaskPriority
     const status = (data.get('status') as string)?.trim() || ''
     const assigned = (data.get('assigned') as string)?.trim() || ''
+    const rawLabels = data.getAll('labels')
+    const labels = Array.from(
+      new Set(
+        rawLabels
+          .flatMap((item) => {
+            if (typeof item === 'string') {
+              try {
+                const parsed = JSON.parse(item)
+                if (Array.isArray(parsed)) return parsed.map(String)
+              } catch {}
+              return [item]
+            }
+            return []
+          })
+          .map((s) => s.trim())
+          .filter(Boolean)
+      )
+    )
 
     if (!title) {
       return fail(400, {
@@ -121,7 +152,8 @@ export const actions: Actions = {
         description,
         priority,
         status,
-        assigned
+        assigned,
+        labels
       })
     }
 
@@ -136,7 +168,8 @@ export const actions: Actions = {
           description,
           priority: selectedPriority,
           status,
-          assigned
+          assigned,
+          labels
         })
       }
 
@@ -163,7 +196,8 @@ export const actions: Actions = {
           {
             title,
             body: description,
-            state: status === 'closed' ? 'closed' : 'open'
+            state: status === 'closed' ? 'closed' : 'open',
+            labels
           },
           decryptedToken
         )
@@ -175,7 +209,8 @@ export const actions: Actions = {
           description,
           priority: selectedPriority,
           status,
-          assigned
+          assigned,
+          labels
         })
       }
 
@@ -199,7 +234,8 @@ export const actions: Actions = {
         description: description || null,
         priority: selectedPriority,
         status: status || null,
-        assigned: assigned || null
+        assigned: assigned || null,
+        labels
       })
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'status' in err && (err as { status?: number }).status === 404) {
@@ -212,7 +248,8 @@ export const actions: Actions = {
         description,
         priority: selectedPriority,
         status,
-        assigned
+        assigned,
+        labels
       })
     }
 

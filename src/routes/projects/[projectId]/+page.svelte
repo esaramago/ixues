@@ -151,7 +151,7 @@
     </wa-card>
   {:else}
     <div class="panel">
-      <Grid break="small">
+      <Grid>
         {#each data.statuses as status (status.id)}
           {@const statusTasks = tasks.filter((task) => task.status === status.id)}
           <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -204,7 +204,8 @@
 
               <wa-button
                 href={`/projects/${data.project.slug || data.project.id}/tasks/new?status=${status.id}`}
-                size="small"
+                size="xs"
+                appearance="plain"
                 variant="neutral"
               >
                 <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
@@ -271,10 +272,19 @@
 
 <style>
 .panel {
-  
+  overflow: auto;
+  margin-inline-end: calc(var(--wa-space-xl) * -1); /* It removes the right margin */
 }
 .status {
-  width: 35rem;
   --spacing: var(--wa-space-s);
+  --width: 35rem;
+  max-height: 100%;
+  min-width: var(--width);
+  max-width: var(--width);
+  overflow: auto;
+
+  @media (max-width: 1400px) {
+    --width: 25rem;
+  }
 }
 </style>
