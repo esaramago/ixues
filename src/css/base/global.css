@@ -1,5 +1,12 @@
+body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wa-space-xl);
+}
+
 main {
   display: flex;
   flex-direction: column;
   gap: var(--wa-space-xl);
+  flex: 1;
 }

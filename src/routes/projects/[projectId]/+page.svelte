@@ -120,21 +120,23 @@
                 <small>No tasks</small>
               {:else}
                 {#each statusTasks as task (task.id)}
-                  <wa-card>
-                    <Grid direction="column" gap="xs">
-                      <strong>{task.title}</strong>
-                      {#if task.description}
-                        <small>{task.description}</small>
-                      {/if}
-                      {#if task.priority}
-                        <Grid justify="end">
-                          <wa-badge size="small" variant={getPriorityVariant(task.priority)}>
-                            {task.priority}
-                          </wa-badge>
-                        </Grid>
-                      {/if}
-                    </Grid>
-                  </wa-card>
+                  <a href={`/projects/${data.project.id}/tasks/${task.id}`}>
+                    <wa-card>
+                      <Grid direction="column" gap="xs">
+                        <strong>{task.title}</strong>
+                        {#if task.description}
+                          <small>{task.description}</small>
+                        {/if}
+                        {#if task.priority}
+                          <Grid justify="end">
+                            <wa-badge size="small" variant={getPriorityVariant(task.priority)}>
+                              {task.priority}
+                            </wa-badge>
+                          </Grid>
+                        {/if}
+                      </Grid>
+                    </wa-card>
+                  </a>
                 {/each}
               {/if}
             </Grid>
@@ -161,21 +163,23 @@
 
             <Grid direction="column" gap="s">
               {#each unassignedTasks as task (task.id)}
-                <wa-card>
-                  <Grid direction="column" gap="xs">
-                    <strong>{task.title}</strong>
-                    {#if task.description}
-                      <small>{task.description}</small>
-                    {/if}
-                    {#if task.priority}
-                      <Grid justify="end">
-                        <wa-badge size="small" variant={getPriorityVariant(task.priority)}>
-                          {task.priority}
-                        </wa-badge>
-                      </Grid>
-                    {/if}
-                  </Grid>
-                </wa-card>
+                <a href={`/projects/${data.project.id}/tasks/${task.id}`}>
+                  <wa-card>
+                    <Grid direction="column" gap="xs">
+                      <strong>{task.title}</strong>
+                      {#if task.description}
+                        <small>{task.description}</small>
+                      {/if}
+                      {#if task.priority}
+                        <Grid justify="end">
+                          <wa-badge size="small" variant={getPriorityVariant(task.priority)}>
+                            {task.priority}
+                          </wa-badge>
+                        </Grid>
+                      {/if}
+                    </Grid>
+                  </wa-card>
+                </a>
               {/each}
             </Grid>
           </Grid>

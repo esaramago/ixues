@@ -21,10 +21,8 @@
   let { children } = $props()
 </script>
 
-<Grid direction="column" gap="2xl">
-  <Header />
-  <main class="l-container">
-    {@render children?.()}
-  </main>
-  <Footer />
-</Grid>
+<Header />
+<main class="l-container">
+  {@render children?.()}
+</main>
+<Footer />
