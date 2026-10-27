@@ -28,6 +28,6 @@
 
 <style>
   header {
-    padding: var(--wa-space-l) 0;
+    padding: var(--wa-space-l) var(--wa-space-xl);
   }
 </style>
