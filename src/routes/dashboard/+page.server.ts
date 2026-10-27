@@ -3,20 +3,20 @@ import type { PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (!locals.user) {
-		throw redirect(303, '/login')
-	}
+  if (!locals.user) {
+    throw redirect(303, '/login')
+  }
 
-	try {
-		const projects = await locals.pb.collection('projects').getFullList()
+  try {
+    const projects = await locals.pb.collection('projects').getFullList()
 
-		return {
-			projects: structuredClone(projects) as unknown as Project[]
-		}
-	} catch (err) {
-		console.error('Error fetching projects:', err)
-		return {
-			projects: []
-		}
-	}
+    return {
+      projects: structuredClone(projects) as unknown as Project[],
+    }
+  } catch (err) {
+    console.error('Error fetching projects:', err)
+    return {
+      projects: [],
+    }
+  }
 }
