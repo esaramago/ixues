@@ -64,8 +64,26 @@ export const actions: Actions = {
 		const validPriorities: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
 		const selectedPriority: TaskPriority = validPriorities.includes(priority) ? priority : 'medium'
 
+		let nextNumber = 1
+		try {
+			const highestTask = await locals.pb.collection('tasks').getFirstListItem(`project = "${params.projectId}"`, {
+				sort: '-number'
+			})
+			if (highestTask && typeof highestTask.number === 'number' && highestTask.number >= 1) {
+				nextNumber = highestTask.number + 1
+			} else {
+				const countResult = await locals.pb.collection('tasks').getList(1, 1, {
+					filter: `project = "${params.projectId}"`
+				})
+				nextNumber = countResult.totalItems + 1
+			}
+		} catch {
+			nextNumber = 1
+		}
+
 		try {
 			await locals.pb.collection('tasks').create({
+				number: nextNumber,
 				title,
 				description: description || null,
 				priority: selectedPriority,

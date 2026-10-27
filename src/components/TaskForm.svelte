@@ -44,7 +44,9 @@
   }: Props = $props()
 
   let isEdit = $derived(!!task)
-  let resolvedHeading = $derived(heading ?? (isEdit ? 'Edit Task' : 'New Task'))
+  let resolvedHeading = $derived(
+    heading ?? (isEdit ? (task?.number ? `Task #${task.number}` : 'Edit Task') : 'New Task')
+  )
   let resolvedSubheading = $derived(
     subheading ?? (isEdit ? `Edit task in ${project.name}.` : `Add a new task to ${project.name}.`)
   )
@@ -98,6 +100,15 @@
 
       <form method="POST" action={resolvedAction}>
         <Grid direction="column" gap="l">
+          {#if isEdit && task?.number}
+            <wa-input
+              label="Number"
+              value={`#${task.number}`}
+              readonly
+              disabled
+            ></wa-input>
+          {/if}
+
           <wa-input
             name="title"
             label="Title"

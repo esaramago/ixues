@@ -19,7 +19,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     let tasks: Task[] = []
     try {
       const taskRecords = await locals.pb.collection('tasks').getFullList({
-        filter: `project = "${params.projectId}"`
+        filter: `project = "${params.projectId}"`,
+        sort: 'number'
       })
       tasks = structuredClone(taskRecords) as unknown as Task[]
     } catch (err) {

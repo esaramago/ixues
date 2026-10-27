@@ -185,7 +185,10 @@
         >
           <Grid direction="column" gap="s">
             <Grid align="center" justify="space-between">
-              <strong>{status.name}</strong>
+              <Grid align="center" gap="2xs">
+                <wa-icon name="circle" style={`color: ${status.color || 'var(--wa-color-neutral-50)'}`} variant="regular"></wa-icon>
+                <strong>{status.name}</strong>
+              </Grid>
               <Grid align="center" gap="xs">
                 <wa-badge variant="neutral">{statusTasks.length}</wa-badge>
                 {#if data.project.type === 'local'}
@@ -211,9 +214,6 @@
                 {/if}
               </Grid>
             </Grid>
-            {#if status.color}
-              <small>{status.color}</small>
-            {/if}
 
             <Grid direction="column" gap="s">
               {#if statusTasks.length === 0}
@@ -233,7 +233,12 @@
                   >
                     <wa-card>
                       <Grid direction="column" gap="xs">
-                        <strong>{task.title}</strong>
+                        <strong>
+                          {#if task.number}
+                            #{task.number}{' '}
+                          {/if}
+                          {task.title}
+                        </strong>
                         {#if task.description}
                           <small>{task.description}</small>
                         {/if}
@@ -290,7 +295,12 @@
                 >
                   <wa-card>
                     <Grid direction="column" gap="xs">
-                      <strong>{task.title}</strong>
+                      <strong>
+                        {#if task.number}
+                          #{task.number}{' '}
+                        {/if}
+                        {task.title}
+                      </strong>
                       {#if task.description}
                         <small>{task.description}</small>
                       {/if}

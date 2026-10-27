@@ -4,6 +4,7 @@ export interface Task {
 	id: string
 	created?: string
 	updated?: string
+	number?: number
 	title: string
 	description?: string
 	priority?: TaskPriority | null

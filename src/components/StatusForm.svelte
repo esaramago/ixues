@@ -98,13 +98,12 @@
       value={currentOrder}
     ></wa-input>
 
-    <wa-input
+    <wa-color-picker
       name="color"
       label="Color"
-      placeholder="#3b82f6"
       hint="Hex color code (optional)"
       value={currentColor}
-    ></wa-input>
+    ></wa-color-picker>
 
     <Grid justify="end" gap="s">
       <!-- svelte-ignore a11y_click_events_have_key_events -->

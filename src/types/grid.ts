@@ -1,4 +1,4 @@
-export type Spacing = 'none' | 'xs' | 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl'
+export type Spacing = 'none' | '2xs' | 'xs' | 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl'
 
 export type Break = 'mobile' | 'small'
 export type Justify = 'start' | 'center' | 'end' | 'space-between' | 'space-around' | 'space-evenly'

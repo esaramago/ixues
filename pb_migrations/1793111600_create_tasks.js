@@ -13,6 +13,12 @@ migrate((app) => {
     deleteRule: "@request.auth.id != '' && user = @request.auth.id",
     fields: [
       {
+        name: "number",
+        type: "number",
+        min: 1,
+        onlyInt: true
+      },
+      {
         name: "title",
         type: "text",
         required: true
