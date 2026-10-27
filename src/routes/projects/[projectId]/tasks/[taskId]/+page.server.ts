@@ -2,10 +2,16 @@ import { error, fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
-import { DEFAULT_LOCAL_LABELS, type Task, type TaskPriority } from '@/types/task'
+import {
+  DEFAULT_LOCAL_LABELS,
+  type Task,
+  type TaskPriority,
+  type TaskRelationship
+} from '@/types/task'
 import type { User } from '@/types/user'
 import {
   fetchGitHubIssue,
+  fetchGitHubIssues,
   fetchGitHubLabels,
   getGitHubStatuses,
   updateGitHubIssue
@@ -44,12 +50,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       const users: User[] = task.expand?.assigned ? [task.expand.assigned] : []
 
       let availableLabels: string[] = []
+      let availableTasks: Task[] = []
       if (project.repo_url) {
         try {
-          const decryptedToken = decryptToken(project.token)
-          availableLabels = await fetchGitHubLabels(project.repo_url, decryptedToken)
+          const [labels, allIssues] = await Promise.all([
+            fetchGitHubLabels(project.repo_url, decryptedToken),
+            fetchGitHubIssues(project.repo_url, project.id, locals.user.id, decryptedToken)
+          ])
+          availableLabels = labels
+          availableTasks = allIssues.filter((t) => String(t.number || t.id) !== String(params.taskId))
         } catch (err) {
-          console.error('Failed to load GitHub labels:', err)
+          console.error('Failed to load GitHub data:', err)
         }
       }
 
@@ -58,7 +69,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
         task,
         statuses,
         users,
-        availableLabels
+        availableLabels,
+        availableTasks
       }
     }
 
@@ -68,6 +80,31 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
     if (taskRecord.project !== project.id) {
       throw error(404, 'Task not found in this project')
+    }
+
+    let allProjectTasks: Task[] = []
+    try {
+      const records = await locals.pb.collection('tasks').getFullList({
+        filter: `project = "${project.id}"`,
+        sort: 'number'
+      })
+      allProjectTasks = structuredClone(records) as unknown as Task[]
+    } catch {
+      allProjectTasks = []
+    }
+
+    const availableTasks = allProjectTasks.filter((t) => t.id !== taskRecord.id)
+
+    const task = structuredClone(taskRecord) as unknown as Task
+    if (task.relationships && Array.isArray(task.relationships)) {
+      task.relationships = task.relationships.map((rel) => {
+        const found = allProjectTasks.find((t) => t.id === rel.taskId || String(t.number) === rel.taskId)
+        return {
+          ...rel,
+          taskNumber: rel.taskNumber ?? found?.number,
+          taskTitle: rel.taskTitle ?? found?.title
+        }
+      })
     }
 
     let statuses: Status[] = []
@@ -93,10 +130,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
     return {
       project: sanitizeProject(project),
-      task: structuredClone(taskRecord) as unknown as Task,
+      task,
       statuses,
       users,
-      availableLabels: [...DEFAULT_LOCAL_LABELS]
+      availableLabels: [...DEFAULT_LOCAL_LABELS],
+      availableTasks
     }
   } catch (err: unknown) {
     if (err && typeof err === 'object' && 'status' in err) {
@@ -145,6 +183,26 @@ export const actions: Actions = {
       )
     )
 
+    const rawRelationships = data.get('relationships') as string
+    let relationships: TaskRelationship[] = []
+    if (rawRelationships) {
+      try {
+        const parsed = JSON.parse(rawRelationships)
+        if (Array.isArray(parsed)) {
+          relationships = parsed
+            .map((item) => ({
+              type: item.type || 'relates_to',
+              taskId: String(item.taskId || item.id || '').trim(),
+              taskNumber: item.taskNumber ? Number(item.taskNumber) : undefined,
+              taskTitle: item.taskTitle ? String(item.taskTitle).trim() : undefined
+            }))
+            .filter((item) => item.taskId)
+        }
+      } catch (err) {
+        console.error('Failed to parse relationships:', err)
+      }
+    }
+
     if (!title) {
       return fail(400, {
         error: 'Task title is required.',
@@ -153,7 +211,8 @@ export const actions: Actions = {
         priority,
         status,
         assigned,
-        labels
+        labels,
+        relationships
       })
     }
 
@@ -169,7 +228,8 @@ export const actions: Actions = {
           priority: selectedPriority,
           status,
           assigned,
-          labels
+          labels,
+          relationships
         })
       }
 
@@ -197,7 +257,8 @@ export const actions: Actions = {
             title,
             body: description,
             state: status === 'closed' ? 'closed' : 'open',
-            labels
+            labels,
+            relationships
           },
           decryptedToken
         )
@@ -210,7 +271,8 @@ export const actions: Actions = {
           priority: selectedPriority,
           status,
           assigned,
-          labels
+          labels,
+          relationships
         })
       }
 
@@ -235,7 +297,8 @@ export const actions: Actions = {
         priority: selectedPriority,
         status: status || null,
         assigned: assigned || null,
-        labels
+        labels,
+        relationships
       })
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'status' in err && (err as { status?: number }).status === 404) {
@@ -249,7 +312,8 @@ export const actions: Actions = {
         priority: selectedPriority,
         status,
         assigned,
-        labels
+        labels,
+        relationships
       })
     }
 

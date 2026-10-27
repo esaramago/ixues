@@ -67,7 +67,7 @@
       <Grid justify="space-between" align="center">
         <h3 data-appearance="p">
           {#if task.number}
-            #{task.number}{' '}
+            <span class="task__number">#{task.number}{' '}</span>
           {/if}
           {task.title}
         </h3>
@@ -89,6 +89,18 @@
             </wa-badge>
           {/each}
         {/if}
+        {#if task.branches && task.branches.length > 0}
+          <wa-badge size="s" pill variant="neutral" title={`${task.branches.length} branch(es)`}>
+            <wa-icon slot="start" name="code-branch" variant="solid"></wa-icon>
+            {task.branches.length}
+          </wa-badge>
+        {/if}
+        {#if task.relationships && task.relationships.length > 0}
+          <wa-badge size="s" pill variant="neutral" title={`${task.relationships.length} relationship(s)`}>
+            <wa-icon slot="start" name="link" variant="solid"></wa-icon>
+            {task.relationships.length}
+          </wa-badge>
+        {/if}
       </Grid>
     </Grid>
   </wa-card>
@@ -109,6 +121,9 @@ wa-card {
 }
 h3 {
   font-size: var(--wa-font-size-s);
+}
+.task__number {
+  color: var(--wa-color-neutral-70);
 }
 wa-avatar {
   --size: 2.4rem;

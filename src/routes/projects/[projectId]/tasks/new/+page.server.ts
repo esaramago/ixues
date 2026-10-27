@@ -2,10 +2,16 @@ import { error, fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
-import { DEFAULT_LOCAL_LABELS, type TaskPriority } from '@/types/task'
+import {
+  DEFAULT_LOCAL_LABELS,
+  type Task,
+  type TaskPriority,
+  type TaskRelationship
+} from '@/types/task'
 import type { User } from '@/types/user'
 import {
   createGitHubIssue,
+  fetchGitHubIssues,
   fetchGitHubLabels,
   getGitHubStatuses
 } from '@/lib/github'
@@ -29,12 +35,18 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
         : 'open'
 
       let availableLabels: string[] = []
+      let availableTasks: Task[] = []
       if (project.repo_url) {
         try {
           const decryptedToken = decryptToken(project.token)
-          availableLabels = await fetchGitHubLabels(project.repo_url, decryptedToken)
+          const [labels, allIssues] = await Promise.all([
+            fetchGitHubLabels(project.repo_url, decryptedToken),
+            fetchGitHubIssues(project.repo_url, project.id, locals.user.id, decryptedToken)
+          ])
+          availableLabels = labels
+          availableTasks = allIssues
         } catch (err) {
-          console.error('Failed to fetch GitHub labels:', err)
+          console.error('Failed to fetch GitHub data:', err)
         }
       }
 
@@ -44,7 +56,8 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
         defaultStatus,
         defaultAssigned: '',
         users: [],
-        availableLabels
+        availableLabels,
+        availableTasks
       }
     }
 
@@ -56,7 +69,6 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
       })
       statuses = structuredClone(statusRecords) as unknown as Status[]
     } catch {
-      // Status collection may be empty or not yet configured for this project
       statuses = []
     }
 
@@ -75,6 +87,17 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
       users = []
     }
 
+    let availableTasks: Task[] = []
+    try {
+      const records = await locals.pb.collection('tasks').getFullList({
+        filter: `project = "${project.id}"`,
+        sort: 'number'
+      })
+      availableTasks = structuredClone(records) as unknown as Task[]
+    } catch {
+      availableTasks = []
+    }
+
     const defaultAssigned = users.length === 1 ? users[0].id : ''
 
     return {
@@ -83,7 +106,8 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
       defaultStatus,
       defaultAssigned,
       users,
-      availableLabels: [...DEFAULT_LOCAL_LABELS]
+      availableLabels: [...DEFAULT_LOCAL_LABELS],
+      availableTasks
     }
   } catch {
     throw error(404, 'Project not found')
@@ -130,6 +154,26 @@ export const actions: Actions = {
       )
     )
 
+    const rawRelationships = data.get('relationships') as string
+    let relationships: TaskRelationship[] = []
+    if (rawRelationships) {
+      try {
+        const parsed = JSON.parse(rawRelationships)
+        if (Array.isArray(parsed)) {
+          relationships = parsed
+            .map((item) => ({
+              type: item.type || 'relates_to',
+              taskId: String(item.taskId || item.id || '').trim(),
+              taskNumber: item.taskNumber ? Number(item.taskNumber) : undefined,
+              taskTitle: item.taskTitle ? String(item.taskTitle).trim() : undefined
+            }))
+            .filter((item) => item.taskId)
+        }
+      } catch (err) {
+        console.error('Failed to parse relationships:', err)
+      }
+    }
+
     if (!title) {
       return fail(400, {
         error: 'Task title is required.',
@@ -139,6 +183,7 @@ export const actions: Actions = {
         status,
         assigned,
         labels,
+        relationships
       })
     }
 
@@ -157,6 +202,7 @@ export const actions: Actions = {
           status,
           assigned,
           labels,
+          relationships
         })
       }
 
@@ -183,6 +229,7 @@ export const actions: Actions = {
           status,
           assigned,
           labels,
+          relationships
         })
       }
 
@@ -223,6 +270,7 @@ export const actions: Actions = {
         status: status || null,
         assigned: assigned || null,
         labels,
+        relationships,
         project: project.id,
         user: locals.user.id,
       })
@@ -243,8 +291,11 @@ export const actions: Actions = {
         status,
         assigned,
         labels,
+        relationships
       })
     }
+
+    throw redirect(303, `/projects/${project.slug || project.id}`)
 
     throw redirect(303, `/projects/${project.slug || project.id}`)
   },

@@ -11,6 +11,7 @@
   statuses={data.statuses}
   users={data.users}
   availableLabels={data.availableLabels}
+  availableTasks={data.availableTasks}
   {form}
 />
 

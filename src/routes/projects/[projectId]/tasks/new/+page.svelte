@@ -10,6 +10,7 @@
   statuses={data.statuses}
   users={data.users}
   availableLabels={data.availableLabels}
+  availableTasks={data.availableTasks}
   defaultStatus={data.defaultStatus}
   defaultAssigned={data.defaultAssigned}
   {form}

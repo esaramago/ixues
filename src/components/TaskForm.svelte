@@ -4,7 +4,16 @@
   import Grid from '@/components/Grid.svelte'
   import type { Project } from '@/types/project'
   import type { Status } from '@/types/status'
-  import { DEFAULT_LOCAL_LABELS, type Task, type TaskPriority } from '@/types/task'
+  import {
+    DEFAULT_LOCAL_LABELS,
+    RELATIONSHIP_TYPES,
+    getRelationshipLabel,
+    type RelationshipType,
+    type Task,
+    type TaskBranch,
+    type TaskPriority,
+    type TaskRelationship
+  } from '@/types/task'
   import type { User } from '@/types/user'
 
   export interface TaskFormData {
@@ -15,6 +24,7 @@
     status?: string
     assigned?: string
     labels?: string[]
+    relationships?: TaskRelationship[]
   }
 
   interface Props {
@@ -22,6 +32,7 @@
     statuses: Status[]
     users?: User[]
     availableLabels?: string[]
+    availableTasks?: Task[]
     task?: Task | null
     defaultStatus?: string
     defaultAssigned?: string
@@ -40,6 +51,7 @@
     statuses,
     users = [],
     availableLabels = [],
+    availableTasks = [],
     task = null,
     defaultStatus = '',
     defaultAssigned = '',
@@ -77,6 +89,9 @@
   let status = $state('')
   let assigned = $state('')
   let selectedLabels = $state<string[]>([])
+  let selectedRelationships = $state<TaskRelationship[]>([])
+  let newRelType = $state<RelationshipType>('relates_to')
+  let newRelTaskId = $state('')
   let prevKey = $state('')
   let isConfirmOpen = $state(false)
 
@@ -105,6 +120,7 @@
       status = task ? (task.status || '') : (defaultStatus || statuses[0]?.id || '')
       assigned = task ? (task.assigned || '') : defaultAssignedValue
       selectedLabels = Array.isArray(task?.labels) ? [...task.labels] : []
+      selectedRelationships = Array.isArray(task?.relationships) ? [...task.relationships] : []
     }
     if (form?.priority) {
       priority = form.priority
@@ -117,6 +133,9 @@
     }
     if (form?.labels !== undefined) {
       selectedLabels = form.labels
+    }
+    if (form?.relationships !== undefined) {
+      selectedRelationships = form.relationships
     }
   })
 
@@ -140,6 +159,43 @@
       selectedLabels = [target.value]
     } else {
       selectedLabels = []
+    }
+  }
+
+  function handleAddRelationship() {
+    if (!newRelTaskId) return
+    const targetTask = availableTasks.find((t) => t.id === newRelTaskId || String(t.number) === newRelTaskId)
+    const exists = selectedRelationships.some(
+      (rel) => rel.taskId === newRelTaskId && rel.type === newRelType
+    )
+    if (!exists) {
+      selectedRelationships = [
+        ...selectedRelationships,
+        {
+          type: newRelType,
+          taskId: newRelTaskId,
+          taskNumber: targetTask?.number,
+          taskTitle: targetTask?.title
+        }
+      ]
+    }
+    newRelTaskId = ''
+  }
+
+  function handleRemoveRelationship(index: number) {
+    selectedRelationships = selectedRelationships.filter((_, i) => i !== index)
+  }
+
+  function getRelBadgeVariant(type: RelationshipType): 'neutral' | 'danger' | 'warning' {
+    switch (type) {
+      case 'blocked_by':
+        return 'danger'
+      case 'blocks':
+        return 'warning'
+      case 'duplicate_of':
+      case 'relates_to':
+      default:
+        return 'neutral'
     }
   }
 </script>
@@ -246,6 +302,110 @@
               </wa-option>
             {/each}
           </wa-select>
+
+          <Grid direction="column" gap="s">
+            <h4 data-appearance="h6">Relationships</h4>
+
+            {#if selectedRelationships.length > 0}
+              <Grid direction="column" gap="xs">
+                {#each selectedRelationships as rel, index (rel.taskId + rel.type)}
+                  {@const targetTask = availableTasks.find((t) => t.id === rel.taskId || String(t.number) === rel.taskId)}
+                  {@const taskNum = rel.taskNumber ?? targetTask?.number}
+                  {@const taskTitle = rel.taskTitle ?? targetTask?.title}
+                  {@const taskIdentifier = taskNum ?? rel.taskId}
+                  <Grid align="center" justify="space-between" gap="s">
+                    <Grid align="center" gap="xs" wrap={true}>
+                      <wa-badge size="s" pill variant={getRelBadgeVariant(rel.type)}>
+                        {getRelationshipLabel(rel.type)}
+                      </wa-badge>
+                      <a href={`/projects/${project.slug || project.id}/tasks/${taskIdentifier}`}>
+                        {#if taskNum}#{taskNum} {/if}{taskTitle || rel.taskId}
+                      </a>
+                    </Grid>
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <wa-button
+                      type="button"
+                      size="xs"
+                      variant="neutral"
+                      appearance="plain"
+                      onclick={() => handleRemoveRelationship(index)}
+                      aria-label="Remove relationship"
+                    >
+                      <wa-icon name="xmark" variant="solid"></wa-icon>
+                    </wa-button>
+                  </Grid>
+                {/each}
+              </Grid>
+            {/if}
+
+            {#if availableTasks.length > 0}
+              <Grid break="mobile" align="end" gap="s">
+                <wa-select
+                  label="Relation Type"
+                  value={newRelType}
+                  onchange={(e: Event) => (newRelType = (e.target as HTMLInputElement).value as RelationshipType)}
+                >
+                  {#each RELATIONSHIP_TYPES as option (option.value)}
+                    <wa-option value={option.value}>{option.label}</wa-option>
+                  {/each}
+                </wa-select>
+
+                <wa-select
+                  label="Related Task"
+                  value={newRelTaskId}
+                  onchange={(e: Event) => (newRelTaskId = (e.target as HTMLInputElement).value)}
+                >
+                  <wa-option value="">Select a task...</wa-option>
+                  {#each availableTasks as t (t.id)}
+                    <wa-option value={t.id}>
+                      {#if t.number}#{t.number} {/if}{t.title}
+                    </wa-option>
+                  {/each}
+                </wa-select>
+
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <wa-button
+                  type="button"
+                  variant="neutral"
+                  disabled={!newRelTaskId}
+                  onclick={handleAddRelationship}
+                >
+                  <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
+                  Add Relation
+                </wa-button>
+              </Grid>
+            {/if}
+
+            <input type="hidden" name="relationships" value={JSON.stringify(selectedRelationships)} />
+          </Grid>
+
+          {#if isSyncTask}
+            <Grid direction="column" gap="s">
+              <h4 data-appearance="h6">Branches</h4>
+
+              {#if task?.branches && task.branches.length > 0}
+                <Grid direction="column" gap="xs">
+                  {#each task.branches as branch (branch.name)}
+                    <Grid align="center" gap="xs">
+                      <wa-icon name="code-branch" variant="solid"></wa-icon>
+                      {#if branch.url}
+                        <a href={branch.url} target="_blank" rel="noreferrer">
+                          {branch.name}
+                          <wa-icon name="arrow-up-right-from-square" variant="solid"></wa-icon>
+                        </a>
+                      {:else}
+                        <span>{branch.name}</span>
+                      {/if}
+                    </Grid>
+                  {/each}
+                </Grid>
+              {:else}
+                <small>No linked branches found for this issue.</small>
+              {/if}
+            </Grid>
+          {/if}
 
           {#if isEdit && showDelete}
             <Grid justify="space-between" align="center">

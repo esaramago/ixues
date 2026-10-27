@@ -1,5 +1,5 @@
 import type { Status } from '@/types/status'
-import type { Task, TaskPriority } from '@/types/task'
+import type { Task, TaskBranch, TaskPriority, TaskRelationship } from '@/types/task'
 import { slugify } from '@/lib/slug'
 
 export interface GitHubIssueResponse {
@@ -126,7 +126,11 @@ export function getGitHubStatuses(projectId: string, userId: string): Status[] {
 export function mapGitHubIssueToTask(
   issue: GitHubIssueResponse,
   projectId: string,
-  userId: string
+  userId: string,
+  extra?: {
+    relationships?: TaskRelationship[]
+    branches?: TaskBranch[]
+  }
 ): Task {
   const priority = extractPriority(issue.labels || [])
   const labelNames = (issue.labels || [])
@@ -146,6 +150,8 @@ export function mapGitHubIssueToTask(
     assigned: issue.assignee?.login || null,
     url: issue.html_url,
     labels: labelNames,
+    relationships: extra?.relationships || [],
+    branches: extra?.branches || [],
     expand: issue.assignee
       ? {
           assigned: {
@@ -197,6 +203,163 @@ export async function fetchGitHubIssues(
   return issuesOnly.map((issue) => mapGitHubIssueToTask(issue, projectId, userId))
 }
 
+export async function fetchGitHubBranches(
+  repoUrl: string,
+  issueNumber: number | string,
+  token?: string | null
+): Promise<TaskBranch[]> {
+  const repoInfo = parseGitHubRepo(repoUrl)
+  if (!repoInfo) {
+    return []
+  }
+
+  const { owner, repo } = repoInfo
+  const num = parseInt(String(issueNumber).trim(), 10)
+  const branches: TaskBranch[] = []
+  const branchNames = new Set<string>()
+
+  const resolvedToken = token || process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN
+  if (resolvedToken && !isNaN(num)) {
+    try {
+      const gqlQuery = {
+        query: `
+          query($owner: String!, $repo: String!, $number: Int!) {
+            repository(owner: $owner, name: $repo) {
+              issue(number: $number) {
+                linkedBranches(first: 20) {
+                  nodes {
+                    ref {
+                      name
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `,
+        variables: { owner, repo, number: num }
+      }
+
+      const gqlResponse = await fetch('https://api.github.com/graphql', {
+        method: 'POST',
+        headers: {
+          ...getGitHubHeaders(resolvedToken),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(gqlQuery)
+      })
+
+      if (gqlResponse.ok) {
+        const gqlData = (await gqlResponse.json()) as {
+          data?: {
+            repository?: {
+              issue?: {
+                linkedBranches?: {
+                  nodes?: Array<{ ref?: { name?: string } }>
+                }
+              }
+            }
+          }
+        }
+
+        const nodes = gqlData.data?.repository?.issue?.linkedBranches?.nodes || []
+        for (const node of nodes) {
+          const name = node.ref?.name
+          if (name && !branchNames.has(name)) {
+            branchNames.add(name)
+            branches.push({
+              name,
+              url: `https://github.com/${owner}/${repo}/tree/${encodeURIComponent(name)}`
+            })
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch linked branches via GraphQL:', err)
+    }
+  }
+
+  if (!isNaN(num)) {
+    try {
+      const restResponse = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`,
+        {
+          headers: getGitHubHeaders(token)
+        }
+      )
+
+      if (restResponse.ok) {
+        const repoBranches = (await restResponse.json()) as Array<{ name?: string }>
+        if (Array.isArray(repoBranches)) {
+          const issuePattern = new RegExp(`(^|[\\-_/]|#)(${num})([\\-_/]|$)`, 'i')
+          for (const b of repoBranches) {
+            const name = b.name
+            if (name && !branchNames.has(name) && issuePattern.test(name)) {
+              branchNames.add(name)
+              branches.push({
+                name,
+                url: `https://github.com/${owner}/${repo}/tree/${encodeURIComponent(name)}`
+              })
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch branches from REST API:', err)
+    }
+  }
+
+  return branches
+}
+
+export async function fetchGitHubRelationships(
+  repoUrl: string,
+  issueNumber: number | string,
+  token?: string | null
+): Promise<TaskRelationship[]> {
+  const repoInfo = parseGitHubRepo(repoUrl)
+  if (!repoInfo) {
+    return []
+  }
+
+  const { owner, repo } = repoInfo
+  const num = parseInt(String(issueNumber).trim(), 10)
+  if (isNaN(num)) return []
+
+  const relationships: TaskRelationship[] = []
+
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/issues/${num}/relates_to`,
+      {
+        headers: getGitHubHeaders(token)
+      }
+    )
+
+    if (response.ok) {
+      const data = (await response.json()) as Array<{
+        id: number
+        number: number
+        title: string
+      }>
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          relationships.push({
+            type: 'relates_to',
+            taskId: String(item.number || item.id),
+            taskNumber: item.number,
+            taskTitle: item.title
+          })
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch related issues from GitHub:', err)
+  }
+
+  return relationships
+}
+
 export async function fetchGitHubIssue(
   repoUrl: string,
   issueNumber: number | string,
@@ -231,7 +394,13 @@ export async function fetchGitHubIssue(
   }
 
   const issue = (await response.json()) as GitHubIssueResponse
-  return mapGitHubIssueToTask(issue, projectId, userId)
+
+  const [branches, relationships] = await Promise.all([
+    fetchGitHubBranches(repoUrl, issue.number, token),
+    fetchGitHubRelationships(repoUrl, issue.number, token)
+  ])
+
+  return mapGitHubIssueToTask(issue, projectId, userId, { branches, relationships })
 }
 
 export async function updateGitHubIssueState(
@@ -310,6 +479,7 @@ export async function updateGitHubIssue(
     body?: string
     state?: 'open' | 'closed'
     labels?: string[]
+    relationships?: TaskRelationship[]
   },
   token?: string | null
 ): Promise<void> {
@@ -332,12 +502,37 @@ export async function updateGitHubIssue(
       ...getGitHubHeaders(resolvedToken),
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(updates)
+    body: JSON.stringify({
+      title: updates.title,
+      body: updates.body,
+      state: updates.state,
+      labels: updates.labels
+    })
   })
 
   if (!response.ok) {
     const errorData = (await response.json().catch(() => null)) as { message?: string } | null
     throw new Error(errorData?.message || `Failed to update GitHub issue (HTTP ${response.status})`)
+  }
+
+  if (updates.relationships && updates.relationships.length > 0) {
+    for (const rel of updates.relationships) {
+      const targetId = parseInt(rel.taskId, 10)
+      if (!isNaN(targetId)) {
+        try {
+          await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/relates_to`, {
+            method: 'POST',
+            headers: {
+              ...getGitHubHeaders(resolvedToken),
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ issue_id: targetId })
+          })
+        } catch (err) {
+          console.error('Failed to sync relationship with GitHub:', err)
+        }
+      }
+    }
   }
 }
 

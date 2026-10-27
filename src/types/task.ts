@@ -13,6 +13,42 @@ export const DEFAULT_LOCAL_LABELS = [
 
 export type LocalTaskLabel = (typeof DEFAULT_LOCAL_LABELS)[number]
 
+export type RelationshipType = 'relates_to' | 'blocked_by' | 'blocks' | 'duplicate_of'
+
+export interface TaskRelationship {
+  type: RelationshipType
+  taskId: string
+  taskNumber?: number
+  taskTitle?: string
+}
+
+export interface TaskBranch {
+  name: string
+  url?: string
+}
+
+export const RELATIONSHIP_TYPES: { value: RelationshipType; label: string }[] = [
+  { value: 'relates_to', label: 'Relates to' },
+  { value: 'blocked_by', label: 'Blocked by' },
+  { value: 'blocks', label: 'Blocks' },
+  { value: 'duplicate_of', label: 'Duplicate of' }
+]
+
+export function getRelationshipLabel(type: RelationshipType): string {
+  switch (type) {
+    case 'relates_to':
+      return 'Relates to'
+    case 'blocked_by':
+      return 'Blocked by'
+    case 'blocks':
+      return 'Blocks'
+    case 'duplicate_of':
+      return 'Duplicate of'
+    default:
+      return type
+  }
+}
+
 export interface Task {
   id: string
   created?: string
@@ -28,6 +64,8 @@ export interface Task {
   assigned?: string | null
   url?: string | null
   labels?: string[]
+  relationships?: TaskRelationship[]
+  branches?: TaskBranch[]
   expand?: {
     assigned?: User
     user?: User
