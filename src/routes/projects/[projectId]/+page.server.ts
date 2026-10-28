@@ -11,6 +11,7 @@ import {
   updateProviderIssueStatus
 } from '@/lib/providers'
 import {
+  deleteGitHubLabel,
   ensureGitHubLabelExists,
   formatGitHubStatusLabel,
   renameGitHubLabel
@@ -423,6 +424,105 @@ export const actions: Actions = {
 
     return {
       success: true
+    }
+  },
+
+  deleteStatus: async ({ request, params, locals }) => {
+    if (!locals.user) {
+      throw redirect(303, '/login')
+    }
+
+    let project: Project
+    try {
+      const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
+      project = structuredClone(projectRecord) as unknown as Project
+    } catch {
+      throw error(404, 'Project not found')
+    }
+
+    const data = await request.formData()
+    const statusId = (data.get('statusId') as string)?.trim()
+
+    if (!statusId) {
+      return fail(400, {
+        error: 'Status ID is required.'
+      })
+    }
+
+    try {
+      let existingStatus
+      try {
+        existingStatus = await locals.pb.collection('statuses').getOne(statusId)
+      } catch {
+        const records = await locals.pb.collection('statuses').getFullList({
+          filter: `project = "${project.id}" && (id = "${statusId}" || key = "${statusId}")`
+        })
+        if (records.length > 0) {
+          existingStatus = records[0]
+        }
+      }
+
+      if (!existingStatus || existingStatus.project !== project.id) {
+        return fail(404, {
+          error: 'Status not found or does not belong to this project.'
+        })
+      }
+
+      if (project.type === 'sync') {
+        if (project.provider !== 'github') {
+          return fail(400, {
+            error: 'Statuses cannot be deleted for this synchronized project.'
+          })
+        }
+
+        const statusKey = (existingStatus.key || existingStatus.id).toLowerCase()
+        const statusName = existingStatus.name.toLowerCase()
+        if (
+          statusKey === 'open' ||
+          statusKey === 'closed' ||
+          statusName === 'open' ||
+          statusName === 'closed'
+        ) {
+          return fail(400, {
+            error: 'Native GitHub statuses (Open/Closed) cannot be deleted.'
+          })
+        }
+
+        if (project.repo_url) {
+          try {
+            const decryptedToken = decryptToken(project.token)
+            const labelName = formatGitHubStatusLabel(existingStatus.name)
+            await deleteGitHubLabel(project.repo_url, labelName, decryptedToken)
+          } catch (err) {
+            console.error('Failed to delete GitHub label:', err)
+          }
+        }
+      } else {
+        // Disassociate any local tasks currently assigned to this status
+        try {
+          const tasksInStatus = await locals.pb.collection('tasks').getFullList({
+            filter: `project = "${project.id}" && status = "${existingStatus.id}"`
+          })
+          for (const task of tasksInStatus) {
+            await locals.pb.collection('tasks').update(task.id, {
+              status: null
+            })
+          }
+        } catch (err) {
+          console.error('Failed to disassociate tasks from deleted status:', err)
+        }
+      }
+
+      await locals.pb.collection('statuses').delete(existingStatus.id)
+
+      return {
+        success: true
+      }
+    } catch (err: unknown) {
+      const pbError = err as { status?: number; data?: { message?: string }; message?: string }
+      return fail(pbError?.status || 500, {
+        error: pbError?.data?.message || pbError?.message || 'Failed to delete status.'
+      })
     }
   },
 

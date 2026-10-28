@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { enhance } from '$app/forms'
   import type { Snippet } from 'svelte'
   import Grid from '@/components/Grid.svelte'
 
@@ -32,6 +33,8 @@
     children
   }: Props = $props()
 
+  let isSubmitting = $state(false)
+
   function handleCancel() {
     open = false
     oncancel?.()
@@ -62,12 +65,28 @@
   onwa-after-hide={handleAfterHide}
 >
   {#if action}
-    <form method="POST" {action} onsubmit={handleFormSubmit}>
+    <form
+      method="POST"
+      {action}
+      onsubmit={handleFormSubmit}
+      use:enhance={() => {
+        isSubmitting = true
+        return async ({ result, update }) => {
+          isSubmitting = false
+          await update()
+          if (result.type === 'success') {
+            open = false
+            onconfirm?.()
+          }
+        }
+      }}
+    >
       <Grid direction="column" gap="l">
+        {#if message}
+          <p>{message}</p>
+        {/if}
         {#if children}
           {@render children()}
-        {:else if message}
-          <p>{message}</p>
         {/if}
 
         <Grid justify="end" gap="s">
@@ -76,7 +95,7 @@
           <wa-button variant="neutral" type="button" onclick={handleCancel}>
             {cancelLabel}
           </wa-button>
-          <wa-button variant={confirmVariant} type="submit" {loading}>
+          <wa-button variant={confirmVariant} type="submit" loading={loading || isSubmitting}>
             {confirmLabel}
           </wa-button>
         </Grid>
@@ -84,10 +103,11 @@
     </form>
   {:else}
     <Grid direction="column" gap="l">
+      {#if message}
+        <p>{message}</p>
+      {/if}
       {#if children}
         {@render children()}
-      {:else if message}
-        <p>{message}</p>
       {/if}
 
       <Grid justify="end" gap="s">
@@ -96,7 +116,7 @@
         <wa-button variant="neutral" type="button" onclick={handleCancel}>
           {cancelLabel}
         </wa-button>
-        <wa-button variant={confirmVariant} type="button" onclick={handleConfirm} {loading}>
+        <wa-button variant={confirmVariant} type="button" onclick={handleConfirm} loading={loading || isSubmitting}>
           {confirmLabel}
         </wa-button>
       </Grid>
