@@ -3,6 +3,7 @@ export interface Project {
 	created?: string
 	updated?: string
 	name: string
+	description?: string | null
 	slug?: string
 	type: 'local' | 'sync'
 	provider?: string | null

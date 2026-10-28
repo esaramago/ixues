@@ -5,6 +5,7 @@ import type { Status } from '@/types/status'
 import type { Task } from '@/types/task'
 import {
   fetchProviderIssues,
+  fetchProviderProjectDescription,
   fetchProviderStatuses,
   isSyncProject,
   updateProviderIssueStatus
@@ -32,6 +33,25 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
     if (isSyncProject(project)) {
       const decryptedToken = decryptToken(project.token)
+
+      if (!project.description && project.repo_url) {
+        try {
+          const desc = await fetchProviderProjectDescription(
+            project,
+            decryptedToken,
+            locals.user.email
+          )
+          if (desc) {
+            project.description = desc
+            await locals.pb.collection('projects').update(project.id, {
+              description: desc
+            }).catch(() => {})
+          }
+        } catch (descErr) {
+          console.error('Failed to fetch project description:', descErr)
+        }
+      }
+
       let providerStatuses: Status[] = []
       try {
         providerStatuses = await fetchProviderStatuses(project, locals.user.id, decryptedToken, locals.user.email)

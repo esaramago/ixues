@@ -6,6 +6,7 @@ import {
   fetchGitHubIssue,
   fetchGitHubIssues,
   fetchGitHubLabels,
+  fetchGitHubRepoDescription,
   fetchGitHubStatuses,
   updateGitHubIssue,
   updateGitHubIssueStatus
@@ -33,6 +34,11 @@ async function resolveGitHubIssueNumber(
 
 export const githubAdapter: ProviderAdapter = {
   name: 'github',
+
+  async getDescription(project: Project, token?: string | null): Promise<string | null> {
+    if (!project.repo_url) return null
+    return fetchGitHubRepoDescription(project.repo_url, token)
+  },
 
   async getStatuses(
     project: Project,

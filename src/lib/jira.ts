@@ -301,6 +301,43 @@ export async function resolveJiraProjectKey(
   return null
 }
 
+export async function fetchJiraProjectDescription(
+  repoUrl?: string | null,
+  token?: string | null,
+  userEmail?: string | null,
+  projectName?: string,
+  projectSlug?: string
+): Promise<string | null> {
+  const parsed = parseJiraUrl(repoUrl)
+  if (!parsed) return null
+
+  try {
+    const headers = getJiraHeaders(token, userEmail)
+    const projectKey = await resolveJiraProjectKey(
+      parsed.hostUrl,
+      headers,
+      projectName,
+      projectSlug,
+      parsed.projectKey
+    )
+    if (!projectKey) return null
+
+    const apiBase = await resolveJiraApiBaseUrl(parsed.hostUrl)
+    let res = await fetch(`${apiBase}/rest/api/3/project/${projectKey}`, { headers })
+    if (!res.ok) {
+      res = await fetch(`${apiBase}/rest/api/2/project/${projectKey}`, { headers })
+    }
+    if (res.ok) {
+      const data = (await res.json()) as { description?: unknown }
+      return extractJiraDescription(data.description) || null
+    }
+  } catch (err) {
+    console.error('Failed to fetch Jira project description:', err)
+  }
+
+  return null
+}
+
 export function mapJiraIssueToTask(
   issue: JiraIssueResponse,
   projectId: string,

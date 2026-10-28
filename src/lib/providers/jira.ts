@@ -7,6 +7,7 @@ import {
   fetchJiraIssue,
   fetchJiraIssues,
   fetchJiraLabels,
+  fetchJiraProjectDescription,
   fetchJiraStatuses,
   updateJiraIssue,
   updateJiraIssueStatus
@@ -15,6 +16,21 @@ import type { CreateIssueInput, ProviderAdapter, UpdateIssueInput } from './type
 
 export const jiraAdapter: ProviderAdapter = {
   name: 'jira',
+
+  async getDescription(
+    project: Project,
+    token?: string | null,
+    userEmail?: string | null
+  ): Promise<string | null> {
+    if (!project.repo_url) return null
+    return fetchJiraProjectDescription(
+      project.repo_url,
+      token,
+      userEmail,
+      project.name,
+      project.slug
+    )
+  },
 
   async getStatuses(
     project: Project,

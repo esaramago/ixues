@@ -22,6 +22,12 @@ export interface UpdateIssueInput {
 export interface ProviderAdapter {
   readonly name: string
 
+  getDescription?(
+    project: Project,
+    token?: string | null,
+    userEmail?: string | null
+  ): Promise<string | null>
+
   getStatuses(
     project: Project,
     userId: string,

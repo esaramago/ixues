@@ -53,6 +53,9 @@
                 {/if}
               </Grid>
             </Grid>
+            {#if project.description}
+              <p class="project__description">{project.description}</p>
+            {/if}
           </Grid>
         </wa-card>
       </a>
@@ -72,5 +75,9 @@ a {
 wa-card {
   width: 30rem;
   transition: background-color .2s ease;
+}
+.project__description {
+  font-size: var(--wa-font-size-s);
+  color: var(--wa-color-neutral-80);
 }
 </style>

@@ -1,5 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
+import type { Project } from '@/types/project'
+import { fetchProviderProjectDescription } from '@/lib/providers'
 import { encryptToken } from '@/lib/server/crypto'
 import { generateProjectSlug } from '@/lib/slug'
 
@@ -80,10 +82,24 @@ export const actions: Actions = {
 		}
 
 		try {
+			let description: string | null = null
+			if (type === 'sync') {
+				try {
+					description = await fetchProviderProjectDescription(
+						{ name, type, provider, repo_url: repoUrl, user: locals.user.id } as Project,
+						token,
+						locals.user.email
+					)
+				} catch (descErr) {
+					console.error('Failed to fetch project description:', descErr)
+				}
+			}
+
 			const slug = await generateProjectSlug(locals.pb, name)
 			await locals.pb.collection('projects').create({
 				name,
 				slug,
+				description: description || '',
 				type,
 				provider: type === 'sync' ? provider : null,
 				repo_url: type === 'sync' ? repoUrl : null,

@@ -67,6 +67,27 @@ export function parseGitHubRepo(repoUrl?: string | null): { owner: string; repo:
   return null
 }
 
+export async function fetchGitHubRepoDescription(
+  repoUrl?: string | null,
+  token?: string | null
+): Promise<string | null> {
+  const repoInfo = parseGitHubRepo(repoUrl)
+  if (!repoInfo) return null
+
+  try {
+    const headers = getGitHubHeaders(token)
+    const res = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`, {
+      headers
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.description || null
+  } catch (err) {
+    console.error('Failed to fetch GitHub repo description:', err)
+    return null
+  }
+}
+
 function getGitHubHeaders(customToken?: string | null): HeadersInit {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',

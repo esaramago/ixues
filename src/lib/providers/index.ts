@@ -23,6 +23,16 @@ export function isSyncProject(project?: Pick<Project, 'type'> | null): boolean {
   return project?.type === 'sync'
 }
 
+export async function fetchProviderProjectDescription(
+  project: Project,
+  token?: string | null,
+  userEmail?: string | null
+): Promise<string | null> {
+  const provider = getProvider(project)
+  if (!provider || !provider.getDescription) return null
+  return provider.getDescription(project, token, userEmail)
+}
+
 export async function fetchProviderStatuses(
   project: Project,
   userId: string,

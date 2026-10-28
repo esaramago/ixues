@@ -1,7 +1,8 @@
 import { error, fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
-import { encryptToken, sanitizeProject } from '@/lib/server/crypto'
+import { fetchProviderProjectDescription } from '@/lib/providers'
+import { decryptToken, encryptToken, sanitizeProject } from '@/lib/server/crypto'
 import { generateProjectSlug, getProjectByIdOrSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -120,12 +121,30 @@ export const actions: Actions = {
 
     let targetSlug = project.slug
     try {
+      let description = project.description || ''
+      if (type === 'sync') {
+        try {
+          const rawToken = token || (removeToken ? '' : decryptToken(project.token))
+          const fetchedDesc = await fetchProviderProjectDescription(
+            { ...project, name, type, provider, repo_url: repoUrl },
+            rawToken,
+            locals.user.email
+          )
+          if (fetchedDesc !== null) {
+            description = fetchedDesc
+          }
+        } catch (descErr) {
+          console.error('Failed to update project description:', descErr)
+        }
+      }
+
       if (!targetSlug) {
         targetSlug = await generateProjectSlug(locals.pb, name, project.id)
       }
       await locals.pb.collection('projects').update(project.id, {
         name,
         slug: targetSlug,
+        description,
         type,
         provider: type === 'sync' ? provider : null,
         repo_url: type === 'sync' ? repoUrl : null,
