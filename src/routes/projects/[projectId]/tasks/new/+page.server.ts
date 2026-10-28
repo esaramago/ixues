@@ -4,18 +4,18 @@ import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
 import {
   DEFAULT_LOCAL_LABELS,
-  type Task,
-  type TaskPriority,
-  type TaskRelationship
+  type Task
 } from '@/types/task'
 import type { User } from '@/types/user'
 import {
-  createGitHubIssue,
-  fetchGitHubIssues,
-  fetchGitHubLabels,
-  getGitHubStatuses
-} from '@/lib/github'
+  createProviderIssue,
+  fetchProviderIssues,
+  fetchProviderLabels,
+  fetchProviderStatuses,
+  isSyncProject
+} from '@/lib/providers'
 import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
+import { parseTaskFormData } from '@/lib/server/task-form'
 import { generateTaskSlug, getProjectByIdOrSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
@@ -27,26 +27,26 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
     const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
     const project = structuredClone(projectRecord) as unknown as Project
 
-    if (project.type === 'sync' && project.provider === 'github') {
-      const statuses = getGitHubStatuses(project.id, locals.user.id)
+    if (isSyncProject(project)) {
+      const decryptedToken = decryptToken(project.token)
+      const statuses = await fetchProviderStatuses(project, locals.user.id, decryptedToken, locals.user.email)
       const statusParam = url.searchParams.get('status') || ''
       const defaultStatus = statuses.some((s) => s.id === statusParam)
         ? statusParam
-        : 'open'
+        : statuses[0]?.id || ''
 
       let availableLabels: string[] = []
       let availableTasks: Task[] = []
       if (project.repo_url) {
         try {
-          const decryptedToken = decryptToken(project.token)
           const [labels, allIssues] = await Promise.all([
-            fetchGitHubLabels(project.repo_url, decryptedToken),
-            fetchGitHubIssues(project.repo_url, project.id, locals.user.id, decryptedToken)
+            fetchProviderLabels(project, decryptedToken, locals.user.email),
+            fetchProviderIssues(project, locals.user.id, decryptedToken, locals.user.email)
           ])
           availableLabels = labels
           availableTasks = allIssues
         } catch (err) {
-          console.error('Failed to fetch GitHub data:', err)
+          console.error('Failed to fetch provider data:', err)
         }
       }
 
@@ -129,50 +129,7 @@ export const actions: Actions = {
     }
 
     const data = await request.formData()
-    const title = (data.get('title') as string)?.trim()
-    const description = (data.get('description') as string)?.trim() || ''
-    const priority = ((data.get('priority') as string)?.trim() ||
-      'medium') as TaskPriority
-    const status = (data.get('status') as string)?.trim() || ''
-    const assigned = (data.get('assigned') as string)?.trim() || ''
-    const rawLabels = data.getAll('labels')
-    const labels = Array.from(
-      new Set(
-        rawLabels
-          .flatMap((item) => {
-            if (typeof item === 'string') {
-              try {
-                const parsed = JSON.parse(item)
-                if (Array.isArray(parsed)) return parsed.map(String)
-              } catch {}
-              return [item]
-            }
-            return []
-          })
-          .map((s) => s.trim())
-          .filter(Boolean)
-      )
-    )
-
-    const rawRelationships = data.get('relationships') as string
-    let relationships: TaskRelationship[] = []
-    if (rawRelationships) {
-      try {
-        const parsed = JSON.parse(rawRelationships)
-        if (Array.isArray(parsed)) {
-          relationships = parsed
-            .map((item) => ({
-              type: item.type || 'relates_to',
-              taskId: String(item.taskId || item.id || '').trim(),
-              taskNumber: item.taskNumber ? Number(item.taskNumber) : undefined,
-              taskTitle: item.taskTitle ? String(item.taskTitle).trim() : undefined
-            }))
-            .filter((item) => item.taskId)
-        }
-      } catch (err) {
-        console.error('Failed to parse relationships:', err)
-      }
-    }
+    const { title, description, priority, status, assigned, labels, relationships } = parseTaskFormData(data)
 
     if (!title) {
       return fail(400, {
@@ -187,18 +144,13 @@ export const actions: Actions = {
       })
     }
 
-    const validPriorities: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
-    const selectedPriority: TaskPriority = validPriorities.includes(priority)
-      ? priority
-      : 'medium'
-
-    if (project.type === 'sync' && project.provider === 'github') {
+    if (isSyncProject(project)) {
       if (!project.repo_url) {
         return fail(400, {
           error: 'Project repository URL is missing.',
           title,
           description,
-          priority: selectedPriority,
+          priority,
           status,
           assigned,
           labels,
@@ -208,24 +160,25 @@ export const actions: Actions = {
 
       try {
         const decryptedToken = decryptToken(project.token)
-        await createGitHubIssue(
-          project.repo_url,
+        await createProviderIssue(
+          project,
           {
             title,
             body: description,
-            labels
+            labels,
+            priority
           },
-          project.id,
           locals.user.id,
-          decryptedToken
+          decryptedToken,
+          locals.user.email
         )
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Failed to create issue on GitHub.'
+        const message = err instanceof Error ? err.message : 'Failed to create issue.'
         return fail(500, {
           error: message,
           title,
           description,
-          priority: selectedPriority,
+          priority,
           status,
           assigned,
           labels,
@@ -266,7 +219,7 @@ export const actions: Actions = {
         title,
         slug,
         description: description || null,
-        priority: selectedPriority,
+        priority,
         status: status || null,
         assigned: assigned || null,
         labels,
@@ -287,15 +240,13 @@ export const actions: Actions = {
           'Failed to create task.',
         title,
         description,
-        priority: selectedPriority,
+        priority,
         status,
         assigned,
         labels,
         relationships
       })
     }
-
-    throw redirect(303, `/projects/${project.slug || project.id}`)
 
     throw redirect(303, `/projects/${project.slug || project.id}`)
   },

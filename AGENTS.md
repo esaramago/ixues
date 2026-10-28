@@ -43,6 +43,7 @@ Esta app faz a sincronização de outras ferramentas com issue tracking (Jira, G
 - Code comments must be in English.
 - README.md and AGENTS.md must be in English.
 - Do not commit any changes.
+- Avoid repeating code. Create reusable functions and components when it makes sense.
 - Files use 2 spaces indentation
 
 ## Notes

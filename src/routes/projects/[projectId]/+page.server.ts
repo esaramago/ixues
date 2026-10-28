@@ -4,10 +4,11 @@ import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
 import type { Task } from '@/types/task'
 import {
-  fetchGitHubIssues,
-  getGitHubStatuses,
-  updateGitHubIssueState
-} from '@/lib/github'
+  fetchProviderIssues,
+  fetchProviderStatuses,
+  isSyncProject,
+  updateProviderIssueStatus
+} from '@/lib/providers'
 import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
 import { getProjectByIdOrSlug } from '@/lib/slug'
 
@@ -24,16 +25,20 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     let tasks: Task[] = []
     let syncError: string | null = null
 
-    if (project.type === 'sync' && project.provider === 'github') {
-      statuses = getGitHubStatuses(project.id, locals.user.id)
+    if (isSyncProject(project)) {
+      const decryptedToken = decryptToken(project.token)
+      try {
+        statuses = await fetchProviderStatuses(project, locals.user.id, decryptedToken, locals.user.email)
+      } catch (err) {
+        console.error('Error fetching provider statuses:', err)
+      }
 
       if (project.repo_url) {
         try {
-          const decryptedToken = decryptToken(project.token)
-          tasks = await fetchGitHubIssues(project.repo_url, project.id, locals.user.id, decryptedToken)
+          tasks = await fetchProviderIssues(project, locals.user.id, decryptedToken, locals.user.email)
         } catch (err: unknown) {
-          syncError = err instanceof Error ? err.message : 'Failed to fetch issues from GitHub'
-          console.error('Error fetching GitHub issues:', syncError)
+          syncError = err instanceof Error ? err.message : `Failed to fetch issues from ${project.provider || 'provider'}`
+          console.error('Error fetching provider issues:', syncError)
           tasks = []
         }
       }
@@ -246,24 +251,28 @@ export const actions: Actions = {
       return fail(400, { error: 'Task ID is required.' })
     }
 
-    if (project.type === 'sync' && project.provider === 'github') {
+    if (isSyncProject(project)) {
       if (!project.repo_url) {
         return fail(400, { error: 'Project repository URL is missing.' })
       }
-      if (statusId !== 'open' && statusId !== 'closed') {
-        return fail(400, {
-          error: 'Invalid status for GitHub issue. Expected "open" or "closed".'
-        })
+      if (!statusId) {
+        return fail(400, { error: 'Status ID is required.' })
       }
 
       try {
         const decryptedToken = decryptToken(project.token)
-        await updateGitHubIssueState(project.repo_url, taskId, statusId, decryptedToken)
+        await updateProviderIssueStatus(
+          project,
+          taskId,
+          statusId,
+          decryptedToken,
+          locals.user.email
+        )
         return {
           success: true
         }
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Failed to update GitHub issue status.'
+        const message = err instanceof Error ? err.message : 'Failed to update issue status.'
         return fail(500, { error: message })
       }
     }

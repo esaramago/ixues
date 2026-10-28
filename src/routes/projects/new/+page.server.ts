@@ -21,6 +21,7 @@ export const actions: Actions = {
 		const provider = (data.get('provider') as string)?.trim() || ''
 		const repoUrl = (data.get('repoUrl') as string)?.trim() || ''
 		const token = (data.get('token') as string)?.trim() || ''
+		const onlyMyTasks = data.get('onlyMyTasks') === 'true' || data.get('onlyMyTasks') === 'on'
 
 		if (!name) {
 			return fail(400, {
@@ -29,7 +30,8 @@ export const actions: Actions = {
 				type,
 				provider,
 				repoUrl,
-				token
+				token,
+				onlyMyTasks
 			})
 		}
 
@@ -41,7 +43,8 @@ export const actions: Actions = {
 					type,
 					provider,
 					repoUrl,
-					token
+					token,
+					onlyMyTasks
 				})
 			}
 
@@ -52,7 +55,8 @@ export const actions: Actions = {
 					type,
 					provider,
 					repoUrl,
-					token
+					token,
+					onlyMyTasks
 				})
 			}
 
@@ -65,7 +69,8 @@ export const actions: Actions = {
 					type,
 					provider,
 					repoUrl,
-					token
+					token,
+					onlyMyTasks
 				})
 			}
 		}
@@ -79,6 +84,7 @@ export const actions: Actions = {
 				provider: type === 'sync' ? provider : null,
 				repo_url: type === 'sync' ? repoUrl : null,
 				token: type === 'sync' && token ? encryptToken(token) : null,
+				only_my_tasks: onlyMyTasks,
 				user: locals.user.id
 			})
 		} catch (err: unknown) {
@@ -89,7 +95,8 @@ export const actions: Actions = {
 				type,
 				provider,
 				repoUrl,
-				token
+				token,
+				onlyMyTasks
 			})
 		}
 

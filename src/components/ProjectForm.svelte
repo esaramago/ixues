@@ -11,6 +11,7 @@
     provider?: string
     repoUrl?: string
     token?: string
+    onlyMyTasks?: boolean
   }
 
   interface Props {
@@ -62,6 +63,7 @@
   let selectedProvider = $state('github')
   let repoUrl = $state('')
   let token = $state('')
+  let onlyMyTasks = $state(false)
   let prevKey = $state('')
   let isConfirmOpen = $state(false)
 
@@ -74,6 +76,7 @@
       selectedProvider = project?.provider || 'github'
       repoUrl = project?.repo_url || ''
       token = ''
+      onlyMyTasks = Boolean(project?.only_my_tasks)
     }
     if (form?.name !== undefined) {
       projectName = form.name
@@ -89,6 +92,9 @@
     }
     if (form?.token !== undefined) {
       token = form.token
+    }
+    if (form?.onlyMyTasks !== undefined) {
+      onlyMyTasks = Boolean(form.onlyMyTasks)
     }
   })
 
@@ -194,13 +200,27 @@
             {#if project?.has_token}
               <span slot="hint">
                 A token is currently configured. Leave blank to keep it unchanged, or enter a new token to update it.
-                Generate one at
-                <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
-                  GitHub Personal Access Tokens
-                </a>.
+                {#if selectedProvider === 'jira'}
+                  Generate one at
+                  <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
+                    Atlassian API Tokens
+                  </a>
+                  (required scopes: <code>read:jira-work</code>, <code>write:jira-work</code>; recommended: <code>read:jira-user</code>).
+                {:else}
+                  Generate one at
+                  <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
+                    GitHub Personal Access Tokens
+                  </a>.
+                {/if}
               </span>
             {:else if selectedProvider === 'jira'}
-              <span slot="hint">Enter your Jira API token</span>
+              <span slot="hint">
+                Enter your Jira API token (or email:token). Generate one at
+                <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
+                  Atlassian API Tokens
+                </a>
+                (required scopes: <code>read:jira-work</code>, <code>write:jira-work</code>; recommended: <code>read:jira-user</code>).
+              </span>
             {:else}
               <span slot="hint">
                 Personal access token for GitHub authentication. Generate one at
@@ -217,6 +237,15 @@
             </wa-checkbox>
           {/if}
         {/if}
+
+        <wa-checkbox
+          name="onlyMyTasks"
+          value="true"
+          checked={onlyMyTasks}
+          onchange={(e: Event) => (onlyMyTasks = (e.target as HTMLInputElement).checked)}
+        >
+          Only show tasks assigned to me by default
+        </wa-checkbox>
 
         {#if isEdit && showDelete}
           <Grid justify="space-between" align="center">

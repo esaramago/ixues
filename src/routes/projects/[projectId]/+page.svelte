@@ -6,16 +6,21 @@
   import Task from '@/components/Task.svelte'
   import type { ActionData, PageData } from './$types'
   import type { Status } from '@/types/status'
-  import type { Task as TaskType } from '@/types/task'
+  import { isTaskAssignedToUser, type Task as TaskType } from '@/types/task'
 
   let { data, form }: { data: PageData; form: ActionData } = $props()
 
   let isCreateDialogOpen = $state(false)
   let editingStatus = $state<Status | null>(null)
   let tasks = $state<TaskType[]>([])
+  let onlyMyTasks = $state(false)
 
   $effect(() => {
     tasks = data.tasks
+  })
+
+  $effect(() => {
+    onlyMyTasks = data.project.only_my_tasks ?? false
   })
 
   $effect(() => {
@@ -31,8 +36,12 @@
     }
   })
 
+  let displayedTasks = $derived(
+    onlyMyTasks ? tasks.filter((task) => isTaskAssignedToUser(task, data.user)) : tasks
+  )
+
   let unassignedTasks = $derived(
-    tasks.filter((task) => !task.status || !data.statuses.some((s) => s.id === task.status))
+    displayedTasks.filter((task) => !task.status || !data.statuses.some((s) => s.id === task.status))
   )
 
   function handleDragOver(event: DragEvent) {
@@ -93,6 +102,17 @@
     </Back>
 
     <Grid align="center" gap="s">
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <wa-button
+        size="s"
+        variant={onlyMyTasks ? 'brand' : 'neutral'}
+        onclick={() => (onlyMyTasks = !onlyMyTasks)}
+      >
+        <wa-icon slot="start" name="user" variant={onlyMyTasks ? 'solid' : 'regular'}></wa-icon>
+        Only my tasks
+      </wa-button>
+
       <wa-button href={`/projects/${data.project.slug || data.project.id}/tasks/new`} size="s" variant="brand">
         <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
         New Task
@@ -115,7 +135,7 @@
       {#if data.project.repo_url}
         <wa-button href={data.project.repo_url} target="_blank" rel="noreferrer">
           <wa-icon slot="start" name="link" variant="solid"></wa-icon>
-          Repository
+          {data.project.provider === 'jira' ? 'Jira' : 'Repository'}
         </wa-button>
       {/if}
     </Grid>
@@ -153,7 +173,7 @@
     <div class="panel">
       <Grid>
         {#each data.statuses as status (status.id)}
-          {@const statusTasks = tasks.filter((task) => task.status === status.id)}
+          {@const statusTasks = displayedTasks.filter((task) => task.status === status.id)}
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <wa-card
             class="status"

@@ -52,6 +52,7 @@ export const actions: Actions = {
     const repoUrl = (data.get('repoUrl') as string)?.trim() || ''
     const token = (data.get('token') as string)?.trim() || ''
     const removeToken = data.get('removeToken') === 'true'
+    const onlyMyTasks = data.get('onlyMyTasks') === 'true' || data.get('onlyMyTasks') === 'on'
 
     if (!name) {
       return fail(400, {
@@ -60,7 +61,8 @@ export const actions: Actions = {
         type,
         provider,
         repoUrl,
-        token
+        token,
+        onlyMyTasks
       })
     }
 
@@ -72,7 +74,8 @@ export const actions: Actions = {
           type,
           provider,
           repoUrl,
-          token
+          token,
+          onlyMyTasks
         })
       }
 
@@ -83,7 +86,8 @@ export const actions: Actions = {
           type,
           provider,
           repoUrl,
-          token
+          token,
+          onlyMyTasks
         })
       }
 
@@ -96,7 +100,8 @@ export const actions: Actions = {
           type,
           provider,
           repoUrl,
-          token
+          token,
+          onlyMyTasks
         })
       }
     }
@@ -123,7 +128,8 @@ export const actions: Actions = {
         type,
         provider: type === 'sync' ? provider : null,
         repo_url: type === 'sync' ? repoUrl : null,
-        token: finalToken
+        token: finalToken,
+        only_my_tasks: onlyMyTasks
       })
     } catch (err: unknown) {
       const pbError = err as { status?: number; data?: { message?: string }; message?: string }
@@ -133,7 +139,8 @@ export const actions: Actions = {
         type,
         provider,
         repoUrl,
-        token
+        token,
+        onlyMyTasks
       })
     }
 

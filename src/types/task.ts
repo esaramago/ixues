@@ -49,6 +49,47 @@ export function getRelationshipLabel(type: RelationshipType): string {
   }
 }
 
+export function isTaskAssignedToUser(task: Task, user?: User | null): boolean {
+  if (!user) return false
+
+  const targetId = user.id?.toLowerCase()
+  const targetEmail = user.email?.toLowerCase()
+  const targetName = user.name?.toLowerCase()
+  const targetUsername = user.username?.toLowerCase()
+
+  if (task.assigned) {
+    const assigned = task.assigned.toLowerCase()
+    if (
+      assigned === targetId ||
+      (targetEmail && assigned === targetEmail) ||
+      (targetName && assigned === targetName) ||
+      (targetUsername && assigned === targetUsername)
+    ) {
+      return true
+    }
+  }
+
+  if (task.expand?.assigned) {
+    const a = task.expand.assigned
+    const aId = a.id?.toLowerCase()
+    const aEmail = a.email?.toLowerCase()
+    const aName = a.name?.toLowerCase()
+    const aUsername = a.username?.toLowerCase()
+
+    if (
+      (targetId && aId === targetId) ||
+      (targetEmail && aEmail === targetEmail) ||
+      (targetName && aName === targetName) ||
+      (targetUsername && (aUsername === targetUsername || aName === targetUsername)) ||
+      (targetName && aUsername === targetName)
+    ) {
+      return true
+    }
+  }
+
+  return false
+}
+
 export interface Task {
   id: string
   created?: string

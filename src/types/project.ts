@@ -9,5 +9,6 @@ export interface Project {
 	repo_url?: string | null
 	token?: string | null
 	has_token?: boolean
+	only_my_tasks?: boolean
 	user: string
 }

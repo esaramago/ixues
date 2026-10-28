@@ -20,6 +20,7 @@
   import '@awesome.me/webawesome/dist/components/select/select.js'
   import '@awesome.me/webawesome/dist/components/spinner/spinner.js'
   import '@awesome.me/webawesome/dist/components/textarea/textarea.js'
+  import '@awesome.me/webawesome/dist/components/checkbox/checkbox.js'
   import Header from '@/components/Header.svelte'
 
   let { children } = $props()

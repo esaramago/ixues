@@ -77,7 +77,9 @@
   let originalTaskUrl = $derived(
     task?.url ||
       (isSyncTask && project.repo_url && (task?.number || task?.id)
-        ? `${project.repo_url.replace(/\/+$/, '')}/issues/${task.number || task.id}`
+        ? (project.provider === 'jira'
+          ? `${project.repo_url.replace(/\/+$/, '')}/browse/${task.id || task.number}`
+          : `${project.repo_url.replace(/\/+$/, '')}/issues/${task.number || task.id}`)
         : null)
   )
 
