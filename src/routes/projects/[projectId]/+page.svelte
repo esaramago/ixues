@@ -137,19 +137,38 @@
         New Task
       </wa-button>
 
-      {#if data.project.type === 'local'}
+      <wa-dropdown
+        placement="bottom-end"
+        onwa-select={(e: CustomEvent<{ item: HTMLElement }>) => {
+          if (e.detail.item.getAttribute('value') === 'new-status') {
+            isCreateDialogOpen = true
+          }
+        }}
+      >
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <wa-button size="s" variant="neutral" onclick={() => (isCreateDialogOpen = true)}>
-          <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
-          New Status
+        <wa-button slot="trigger" size="s" variant="neutral" aria-label="Project actions">
+          <wa-icon name="ellipsis-vertical" variant="solid"></wa-icon>
         </wa-button>
-      {/if}
-
-      <wa-button href={`/projects/${data.project.slug || data.project.id}/edit`} size="s" variant="neutral">
-        <wa-icon slot="start" name="pen-to-square" variant="solid"></wa-icon>
-        Edit Project
-      </wa-button>
+        <wa-dropdown-item
+          value="edit-project"
+          href={`/projects/${data.project.slug || data.project.id}/edit`}
+        >
+          <wa-icon slot="icon" name="pen-to-square" variant="solid"></wa-icon>
+          Edit Project
+        </wa-dropdown-item>
+        {#if data.project.type === 'local'}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <wa-dropdown-item
+            value="new-status"
+            onclick={() => (isCreateDialogOpen = true)}
+          >
+            <wa-icon slot="icon" name="plus" variant="solid"></wa-icon>
+            New status
+          </wa-dropdown-item>
+        {/if}
+      </wa-dropdown>
       
       {#if data.project.repo_url}
         <wa-button href={data.project.repo_url} target="_blank" rel="noreferrer">
@@ -232,7 +251,7 @@
                       disabled={statusIndex === 0}
                       onclick={() => handleMoveStatus(status.id, 'left')}
                     >
-                      <wa-icon slot="start" name="arrow-left" variant="regular"></wa-icon>
+                      <wa-icon slot="icon" name="arrow-left" variant="regular"></wa-icon>
                       Move left
                     </wa-dropdown-item>
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -242,13 +261,13 @@
                       disabled={statusIndex === data.statuses.length - 1}
                       onclick={() => handleMoveStatus(status.id, 'right')}
                     >
-                      <wa-icon slot="start" name="arrow-right" variant="regular"></wa-icon>
+                      <wa-icon slot="icon" name="arrow-right" variant="regular"></wa-icon>
                       Move right
                     </wa-dropdown-item>
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <wa-dropdown-item value="edit" onclick={() => (editingStatus = status)}>
-                      <wa-icon slot="start" name="pen" variant="regular"></wa-icon>
+                      <wa-icon slot="icon" name="pen" variant="regular"></wa-icon>
                       Edit status
                     </wa-dropdown-item>
                   </wa-dropdown>

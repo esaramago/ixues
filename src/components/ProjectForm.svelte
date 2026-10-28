@@ -119,146 +119,159 @@
   }
 </script>
 
-<wa-card>
-  <Grid direction="column" gap="l">
-    <Back href={resolvedCancelHref} title={resolvedHeading} subtitle={resolvedSubheading} />
+<div class="l-container l-container--s">
+  <wa-card>
+    <Grid direction="column" gap="l">
+      <Back href={resolvedCancelHref} title={resolvedHeading} subtitle={resolvedSubheading} />
 
-    {#if form?.error}
-      <wa-callout variant="danger">
-        <wa-icon slot="icon" name="circle-exclamation" variant="solid"></wa-icon>
-        {form.error}
-      </wa-callout>
-    {/if}
+      {#if form?.error}
+        <wa-callout variant="danger">
+          <wa-icon slot="icon" name="circle-exclamation" variant="solid"></wa-icon>
+          {form.error}
+        </wa-callout>
+      {/if}
 
-    <form method="POST" action={resolvedAction}>
-      <Grid direction="column" gap="l">
-        <wa-input
-          name="name"
-          label="Project Name"
-          placeholder="e.g. Website Redesign"
-          value={projectName}
-          oninput={handleNameChange}
-          required
-        ></wa-input>
-
-        <wa-radio-group
-          label="Project Type"
-          name="type"
-          value={projectType}
-          onchange={handleTypeChange}
-        >
-          <wa-radio value="local" checked={projectType === 'local'}>Local</wa-radio>
-          <wa-radio value="sync" checked={projectType === 'sync'}>Synchronization</wa-radio>
-        </wa-radio-group>
-
-        {#if projectType === 'sync'}
-          <wa-select
-            name="provider"
-            label="Provider"
-            value={selectedProvider}
-            onchange={handleProviderChange}
-            required
-          >
-            <wa-option value="github">
-              <wa-icon slot="start" family="brands" name="github"></wa-icon>
-              GitHub
-            </wa-option>
-            <wa-option value="jira">
-              <wa-icon slot="start" family="brands" name="jira"></wa-icon>
-              Jira
-            </wa-option>
-          </wa-select>
-
+      <form method="POST" action={resolvedAction}>
+        <Grid direction="column" gap="l">
           <wa-input
-            name="repoUrl"
-            type="url"
-            label="Repository URL"
-            placeholder={selectedProvider === 'jira'
-              ? 'https://your-domain.atlassian.net'
-              : 'https://github.com/user/repository'}
-            hint={selectedProvider === 'jira'
-              ? 'Enter your Jira domain URL'
-              : 'Enter the GitHub repository URL'}
-            value={repoUrl}
-            oninput={handleRepoUrlChange}
+            name="name"
+            label="Project Name"
+            placeholder="e.g. Website Redesign"
+            value={projectName}
+            oninput={handleNameChange}
             required
           ></wa-input>
 
-          <wa-input
-            name="token"
-            type="password"
-            label="Authentication Token"
-            placeholder={project?.has_token
-              ? '•••••••••••••••• (Leave blank to keep current token)'
-              : (selectedProvider === 'jira'
-                ? 'e.g. Jira API Token'
-                : 'e.g. Personal Access Token (ghp_...)')}
-            value={token}
-            oninput={handleTokenChange}
-            password-toggle
+          <wa-radio-group
+            label="Project Type"
+            name="type"
+            value={projectType}
+            onchange={handleTypeChange}
           >
-            {#if project?.has_token}
-              <span slot="hint">
-                A token is currently configured. Leave blank to keep it unchanged, or enter a new token to update it.
-                {#if selectedProvider === 'jira'}
-                  Generate one at
+            <wa-radio value="local" checked={projectType === 'local'}>Local</wa-radio>
+            <wa-radio value="sync" checked={projectType === 'sync'}>Synchronization</wa-radio>
+          </wa-radio-group>
+
+          {#if projectType === 'sync'}
+            <wa-select
+              name="provider"
+              label="Provider"
+              value={selectedProvider}
+              onchange={handleProviderChange}
+              required
+            >
+              <wa-option value="github">
+                <wa-icon slot="start" family="brands" name="github"></wa-icon>
+                GitHub
+              </wa-option>
+              <wa-option value="jira">
+                <wa-icon slot="start" family="brands" name="jira"></wa-icon>
+                Jira
+              </wa-option>
+            </wa-select>
+
+            <wa-input
+              name="repoUrl"
+              type="url"
+              label="Repository URL"
+              placeholder={selectedProvider === 'jira'
+                ? 'https://your-domain.atlassian.net'
+                : 'https://github.com/user/repository'}
+              hint={selectedProvider === 'jira'
+                ? 'Enter your Jira domain URL'
+                : 'Enter the GitHub repository URL'}
+              value={repoUrl}
+              oninput={handleRepoUrlChange}
+              required
+            ></wa-input>
+
+            <wa-input
+              name="token"
+              type="password"
+              label="Authentication Token"
+              placeholder={project?.has_token
+                ? '•••••••••••••••• (Leave blank to keep current token)'
+                : (selectedProvider === 'jira'
+                  ? 'e.g. Jira API Token'
+                  : 'e.g. Personal Access Token (ghp_...)')}
+              value={token}
+              oninput={handleTokenChange}
+              password-toggle
+            >
+              {#if project?.has_token}
+                <span slot="hint">
+                  A token is currently configured. Leave blank to keep it unchanged, or enter a new token to update it.
+                  {#if selectedProvider === 'jira'}
+                    Generate one at
+                    <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
+                      Atlassian API Tokens
+                    </a>
+                    (required scopes: <code>read:jira-work</code>, <code>write:jira-work</code>; recommended: <code>read:jira-user</code>).
+                  {:else}
+                    Generate one at
+                    <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
+                      GitHub Personal Access Tokens
+                    </a>.
+                  {/if}
+                </span>
+              {:else if selectedProvider === 'jira'}
+                <span slot="hint">
+                  Enter your Jira API token (or email:token). Generate one at
                   <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
                     Atlassian API Tokens
                   </a>
                   (required scopes: <code>read:jira-work</code>, <code>write:jira-work</code>; recommended: <code>read:jira-user</code>).
-                {:else}
-                  Generate one at
+                </span>
+              {:else}
+                <span slot="hint">
+                  Personal access token for GitHub authentication. Generate one at
                   <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
                     GitHub Personal Access Tokens
                   </a>.
-                {/if}
-              </span>
-            {:else if selectedProvider === 'jira'}
-              <span slot="hint">
-                Enter your Jira API token (or email:token). Generate one at
-                <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
-                  Atlassian API Tokens
-                </a>
-                (required scopes: <code>read:jira-work</code>, <code>write:jira-work</code>; recommended: <code>read:jira-user</code>).
-              </span>
-            {:else}
-              <span slot="hint">
-                Personal access token for GitHub authentication. Generate one at
-                <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
-                  GitHub Personal Access Tokens
-                </a>.
-              </span>
+                </span>
+              {/if}
+            </wa-input>
+
+            {#if isEdit && project?.has_token}
+              <wa-checkbox name="removeToken" value="true">
+                Remove saved authentication token
+              </wa-checkbox>
             {/if}
-          </wa-input>
-
-          {#if isEdit && project?.has_token}
-            <wa-checkbox name="removeToken" value="true">
-              Remove saved authentication token
-            </wa-checkbox>
           {/if}
-        {/if}
 
-        <wa-checkbox
-          name="onlyMyTasks"
-          value="true"
-          checked={onlyMyTasks}
-          onchange={(e: Event) => (onlyMyTasks = (e.target as HTMLInputElement).checked)}
-        >
-          Only show tasks assigned to me by default
-        </wa-checkbox>
+          <wa-checkbox
+            name="onlyMyTasks"
+            value="true"
+            checked={onlyMyTasks}
+            onchange={(e: Event) => (onlyMyTasks = (e.target as HTMLInputElement).checked)}
+          >
+            Only show tasks assigned to me by default
+          </wa-checkbox>
 
-        {#if isEdit && showDelete}
-          <Grid justify="space-between" align="center">
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <wa-button
-              type="button"
-              variant="danger"
-              onclick={() => (isConfirmOpen = true)}
-            >
-              Delete Project
-            </wa-button>
+          {#if isEdit && showDelete}
+            <Grid justify="space-between" align="center">
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <wa-button
+                type="button"
+                variant="danger"
+                onclick={() => (isConfirmOpen = true)}
+              >
+                Delete Project
+              </wa-button>
 
+              <Grid justify="end" gap="s">
+                {#if oncancel}
+                  <!-- svelte-ignore a11y_click_events_have_key_events -->
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <wa-button variant="neutral" type="button" onclick={oncancel}>Cancel</wa-button>
+                {:else}
+                  <wa-button variant="neutral" href={resolvedCancelHref}>Cancel</wa-button>
+                {/if}
+                <wa-button type="submit" variant="brand">{resolvedSubmitLabel}</wa-button>
+              </Grid>
+            </Grid>
+          {:else}
             <Grid justify="end" gap="s">
               {#if oncancel}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -269,23 +282,12 @@
               {/if}
               <wa-button type="submit" variant="brand">{resolvedSubmitLabel}</wa-button>
             </Grid>
-          </Grid>
-        {:else}
-          <Grid justify="end" gap="s">
-            {#if oncancel}
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <wa-button variant="neutral" type="button" onclick={oncancel}>Cancel</wa-button>
-            {:else}
-              <wa-button variant="neutral" href={resolvedCancelHref}>Cancel</wa-button>
-            {/if}
-            <wa-button type="submit" variant="brand">{resolvedSubmitLabel}</wa-button>
-          </Grid>
-        {/if}
-      </Grid>
-    </form>
-  </Grid>
-</wa-card>
+          {/if}
+        </Grid>
+      </form>
+    </Grid>
+  </wa-card>
+</div>
 
 {#if isEdit && showDelete}
   <ConfirmDialog

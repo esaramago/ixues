@@ -1,4 +1,9 @@
 .l-container {
   width: 100%;
+  max-width: 200rem;
+  margin-inline: auto;
   padding-inline: var(--wa-space-xl);
+}
+.l-container--s {
+  max-width: 100rem;
 }
