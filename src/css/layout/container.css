@@ -7,3 +7,6 @@
 .l-container--s {
   max-width: 100rem;
 }
+.l-container--xs {
+  max-width: 70rem;
+}
