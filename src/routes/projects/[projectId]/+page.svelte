@@ -276,7 +276,7 @@
 
               <Grid direction="column" gap="s">
                 {#if statusTasks.length === 0}
-                  <small>No tasks</small>
+                  <div class="empty-state">No tasks</div>
                 {:else}
                   {#each statusTasks as task (task.id)}
                     <Task {task} projectId={data.project.slug || data.project.id} />
@@ -374,5 +374,14 @@
 .status__counter {
   font-size: var(--wa-font-size-2xs);
   font-weight: 600;
+}
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px dashed var(--wa-color-neutral-50);
+  font-size: var(--wa-font-size-s);
+  color: var(--wa-color-neutral-70);
+  padding: var(--wa-space-l) var(--wa-space-xs);
 }
 </style>
