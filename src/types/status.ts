@@ -7,4 +7,6 @@ export interface Status {
   order: number
   color?: string | null
   user: string
+  key?: string | null
+  pbId?: string
 }

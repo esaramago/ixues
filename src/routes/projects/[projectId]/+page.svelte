@@ -86,6 +86,25 @@
       tasks = previousTasks
     }
   }
+
+  async function handleMoveStatus(statusId: string, direction: 'left' | 'right') {
+    const formData = new FormData()
+    formData.append('statusId', statusId)
+    formData.append('direction', direction)
+
+    try {
+      const response = await fetch('?/reorderStatus', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (response.ok) {
+        await invalidateAll()
+      }
+    } catch (err) {
+      console.error('Failed to reorder status:', err)
+    }
+  }
 </script>
 
 <Grid direction="column">
@@ -172,7 +191,7 @@
   {:else}
     <div class="panel">
       <Grid>
-        {#each data.statuses as status (status.id)}
+        {#each data.statuses as status, statusIndex (status.id)}
           {@const statusTasks = displayedTasks.filter((task) => task.status === status.id)}
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <wa-card
@@ -188,27 +207,51 @@
                   <wa-badge variant="neutral" pill appearance="filled-outlined" class="status__counter">{statusTasks.length}</wa-badge>
                 </Grid>
                 <Grid align="center" gap="xs">
-                  {#if data.project.type === 'local'}
-                    <wa-dropdown
-                      placement="bottom-end"
-                      onwa-select={(e: CustomEvent<{ item: HTMLElement }>) => {
-                        if (e.detail.item.getAttribute('value') === 'edit') {
-                          editingStatus = status
-                        }
-                      }}
+                  <wa-dropdown
+                    placement="bottom-end"
+                    onwa-select={(e: CustomEvent<{ item: HTMLElement }>) => {
+                      const val = e.detail.item.getAttribute('value')
+                      if (val === 'edit') {
+                        editingStatus = status
+                      } else if (val === 'move-left') {
+                        handleMoveStatus(status.id, 'left')
+                      } else if (val === 'move-right') {
+                        handleMoveStatus(status.id, 'right')
+                      }
+                    }}
+                  >
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <wa-button slot="trigger" size="s" variant="neutral" aria-label="Status actions" appearance="plain">
+                      <wa-icon name="ellipsis-vertical" variant="solid"></wa-icon>
+                    </wa-button>
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <wa-dropdown-item
+                      value="move-left"
+                      disabled={statusIndex === 0}
+                      onclick={() => handleMoveStatus(status.id, 'left')}
                     >
-                      <!-- svelte-ignore a11y_click_events_have_key_events -->
-                      <!-- svelte-ignore a11y_no_static_element_interactions -->
-                      <wa-button slot="trigger" size="s" variant="neutral" aria-label="Status actions" appearance="plain">
-                        <wa-icon name="ellipsis-vertical" variant="solid"></wa-icon>
-                      </wa-button>
-                      <!-- svelte-ignore a11y_click_events_have_key_events -->
-                      <!-- svelte-ignore a11y_no_static_element_interactions -->
-                      <wa-dropdown-item value="edit" onclick={() => (editingStatus = status)}>
-                        Edit status
-                      </wa-dropdown-item>
-                    </wa-dropdown>
-                  {/if}
+                      <wa-icon slot="start" name="arrow-left" variant="regular"></wa-icon>
+                      Move left
+                    </wa-dropdown-item>
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <wa-dropdown-item
+                      value="move-right"
+                      disabled={statusIndex === data.statuses.length - 1}
+                      onclick={() => handleMoveStatus(status.id, 'right')}
+                    >
+                      <wa-icon slot="start" name="arrow-right" variant="regular"></wa-icon>
+                      Move right
+                    </wa-dropdown-item>
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <wa-dropdown-item value="edit" onclick={() => (editingStatus = status)}>
+                      <wa-icon slot="start" name="pen" variant="regular"></wa-icon>
+                      Edit status
+                    </wa-dropdown-item>
+                  </wa-dropdown>
                 </Grid>
               </Grid>
 
@@ -283,6 +326,7 @@
       status={editingStatus}
       defaultOrder={editingStatus.order}
       {form}
+      isSync={data.project.type === 'sync'}
       oncancel={() => (editingStatus = null)}
       onsuccess={() => (editingStatus = null)}
     />

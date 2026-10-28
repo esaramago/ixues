@@ -17,6 +17,7 @@
     defaultOrder?: number
     action?: string
     submitLabel?: string
+    isSync?: boolean
     oncancel?: () => void
     onsuccess?: () => void
   }
@@ -27,6 +28,7 @@
     defaultOrder = 0,
     action,
     submitLabel,
+    isSync = false,
     oncancel,
     onsuccess
   }: Props = $props()
@@ -86,6 +88,8 @@
       placeholder="e.g. Backlog, In Progress, Done"
       value={currentName}
       required
+      readonly={isSync}
+      hint={isSync ? 'Managed by the provider' : undefined}
     ></wa-input>
 
     <wa-input

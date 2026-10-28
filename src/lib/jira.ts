@@ -369,6 +369,14 @@ export function mapJiraIssueToTask(
   }
 }
 
+export function getJiraCategoryWeight(categoryKey?: string | null): number {
+  const norm = (categoryKey || '').toLowerCase()
+  if (norm === 'new') return 0
+  if (norm === 'indeterminate') return 1
+  if (norm === 'done') return 2
+  return 1
+}
+
 export function getDefaultJiraStatuses(projectId: string, userId: string): Status[] {
   return [
     {
@@ -439,20 +447,38 @@ export async function fetchJiraStatuses(
         const statuses: Status[] = []
 
         if (Array.isArray(issueTypes)) {
+          const rawItems: Array<{ status: JiraStatusItem; categoryWeight: number; originalIndex: number }> = []
           for (const it of issueTypes) {
             for (const s of it.statuses || []) {
               if (!seenIds.has(s.id)) {
                 seenIds.add(s.id)
-                statuses.push({
-                  id: s.id,
-                  name: s.name,
-                  order: statuses.length,
-                  color: mapJiraStatusColor(s.statusCategory?.colorName, s.statusCategory?.key),
-                  project: projectId,
-                  user: userId
+                rawItems.push({
+                  status: s,
+                  categoryWeight: getJiraCategoryWeight(s.statusCategory?.key),
+                  originalIndex: rawItems.length
                 })
               }
             }
+          }
+
+          rawItems.sort((a, b) => {
+            if (a.categoryWeight !== b.categoryWeight) {
+              return a.categoryWeight - b.categoryWeight
+            }
+            return a.originalIndex - b.originalIndex
+          })
+
+          for (let i = 0; i < rawItems.length; i++) {
+            const s = rawItems[i].status
+            statuses.push({
+              id: s.id,
+              name: s.name,
+              order: i,
+              color: mapJiraStatusColor(s.statusCategory?.colorName, s.statusCategory?.key),
+              project: projectId,
+              user: userId,
+              key: s.id
+            })
           }
         }
 
@@ -473,13 +499,19 @@ export async function fetchJiraStatuses(
     if (res.ok) {
       const allStatuses = (await res.json()) as JiraStatusItem[]
       if (Array.isArray(allStatuses) && allStatuses.length > 0) {
-        return allStatuses.slice(0, 10).map((s, index) => ({
+        const sorted = allStatuses.slice(0, 10).sort((a, b) => {
+          const weightA = getJiraCategoryWeight(a.statusCategory?.key)
+          const weightB = getJiraCategoryWeight(b.statusCategory?.key)
+          return weightA - weightB
+        })
+        return sorted.map((s, index) => ({
           id: s.id,
           name: s.name,
           order: index,
           color: mapJiraStatusColor(s.statusCategory?.colorName, s.statusCategory?.key),
           project: projectId,
-          user: userId
+          user: userId,
+          key: s.id
         }))
       }
     }
