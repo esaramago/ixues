@@ -95,6 +95,9 @@ function extractPriority(
     if (name.includes('medium') || name === 'p2') {
       return 'medium'
     }
+    if (name.includes('lowest') || name === 'p4') {
+      return 'lowest'
+    }
     if (name.includes('low') || name === 'p3') {
       return 'low'
     }

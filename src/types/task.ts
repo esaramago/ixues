@@ -1,7 +1,8 @@
 import type { User } from '@/types/user'
 import type { Status } from '@/types/status'
 
-export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
+export const TASK_PRIORITIES = ['lowest', 'low', 'medium', 'high', 'urgent'] as const
+export type TaskPriority = (typeof TASK_PRIORITIES)[number]
 
 export const DEFAULT_LOCAL_LABELS = [
   'bug',

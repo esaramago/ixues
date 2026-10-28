@@ -203,7 +203,10 @@ export function mapJiraPriority(priorityName?: string | null): TaskPriority {
   if (lower.includes('medium') || lower.includes('normal') || lower === 'p2') {
     return 'medium'
   }
-  if (lower.includes('low') || lower.includes('minor') || lower.includes('lowest') || lower.includes('trivial') || lower === 'p3') {
+  if (lower.includes('lowest') || lower.includes('trivial') || lower === 'p4') {
+    return 'lowest'
+  }
+  if (lower.includes('low') || lower.includes('minor') || lower === 'p3') {
     return 'low'
   }
 
@@ -216,9 +219,12 @@ export function mapPriorityToJira(priority?: TaskPriority | null): string {
       return 'Highest'
     case 'high':
       return 'High'
+    case 'medium':
+      return 'Medium'
     case 'low':
       return 'Low'
-    case 'medium':
+    case 'lowest':
+      return 'Lowest'
     default:
       return 'Medium'
   }
@@ -831,7 +837,7 @@ export async function createJiraIssue(
     title: string
     body?: string
     labels?: string[]
-    priority?: TaskPriority
+    priority?: TaskPriority | null
   },
   projectId: string,
   userId: string,
@@ -974,7 +980,7 @@ export async function updateJiraIssue(
     status?: string
     labels?: string[]
     relationships?: TaskRelationship[]
-    priority?: TaskPriority
+    priority?: TaskPriority | null
   },
   token?: string | null,
   userEmail?: string | null

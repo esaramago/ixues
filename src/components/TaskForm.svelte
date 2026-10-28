@@ -20,7 +20,7 @@
     error?: string
     title?: string
     description?: string
-    priority?: TaskPriority
+    priority?: TaskPriority | '' | null
     status?: string
     assigned?: string
     labels?: string[]
@@ -87,7 +87,7 @@
     defaultAssigned || (!task && users.length === 1 ? users[0].id : '')
   )
 
-  let priority = $state<TaskPriority>('medium')
+  let priority = $state<TaskPriority | ''>('medium')
   let status = $state('')
   let assigned = $state('')
   let selectedLabels = $state<string[]>([])
@@ -118,14 +118,14 @@
     const currentKey = task?.id ?? `new-${defaultStatus}-${defaultAssignedValue}`
     if (currentKey !== prevKey) {
       prevKey = currentKey
-      priority = task?.priority || 'medium'
+      priority = task ? (task.priority || '') : 'medium'
       status = task ? (task.status || '') : (defaultStatus || statuses[0]?.id || '')
       assigned = task ? (task.assigned || '') : defaultAssignedValue
       selectedLabels = Array.isArray(task?.labels) ? [...task.labels] : []
       selectedRelationships = Array.isArray(task?.relationships) ? [...task.relationships] : []
     }
-    if (form?.priority) {
-      priority = form.priority
+    if (form?.priority !== undefined) {
+      priority = form.priority || ''
     }
     if (form?.status !== undefined) {
       status = form.status
@@ -142,7 +142,7 @@
   })
 
   function handlePriorityChange(event: Event) {
-    priority = (event.target as HTMLInputElement).value as TaskPriority
+    priority = (event.target as HTMLInputElement).value as TaskPriority | ''
   }
 
   function handleStatusChange(event: Event) {
@@ -255,6 +255,8 @@
               value={priority}
               onchange={handlePriorityChange}
             >
+              <wa-option value="">No priority</wa-option>
+              <wa-option value="lowest">Lowest</wa-option>
               <wa-option value="low">Low</wa-option>
               <wa-option value="medium">Medium</wa-option>
               <wa-option value="high">High</wa-option>

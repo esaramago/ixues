@@ -26,6 +26,7 @@
         return 'brand'
       case 'low':
         return 'success'
+      case 'lowest':
       default:
         return 'neutral'
     }

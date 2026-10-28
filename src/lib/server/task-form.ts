@@ -1,22 +1,25 @@
-import type { TaskPriority, TaskRelationship } from '@/types/task'
+import { TASK_PRIORITIES, type TaskPriority, type TaskRelationship } from '@/types/task'
 
 export interface ParsedTaskFormData {
   title: string
   description: string
-  priority: TaskPriority
+  priority: TaskPriority | null
   status: string
   assigned: string
   labels: string[]
   relationships: TaskRelationship[]
 }
 
-const VALID_PRIORITIES: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
+const VALID_PRIORITIES: readonly string[] = TASK_PRIORITIES
 
 export function parseTaskFormData(data: FormData): ParsedTaskFormData {
   const title = (data.get('title') as string)?.trim() || ''
   const description = (data.get('description') as string)?.trim() || ''
-  const rawPriority = ((data.get('priority') as string)?.trim() || 'medium') as TaskPriority
-  const priority = VALID_PRIORITIES.includes(rawPriority) ? rawPriority : 'medium'
+  const hasPriority = data.has('priority')
+  const rawPriority = (data.get('priority') as string)?.trim()
+  const priority = hasPriority
+    ? (rawPriority && VALID_PRIORITIES.includes(rawPriority) ? (rawPriority as TaskPriority) : null)
+    : 'medium'
   const status = (data.get('status') as string)?.trim() || ''
   const assigned = (data.get('assigned') as string)?.trim() || ''
 

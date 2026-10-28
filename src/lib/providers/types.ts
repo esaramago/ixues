@@ -6,7 +6,7 @@ export interface CreateIssueInput {
   title: string
   body?: string
   labels?: string[]
-  priority?: TaskPriority
+  priority?: TaskPriority | null
 }
 
 export interface UpdateIssueInput {
@@ -15,7 +15,7 @@ export interface UpdateIssueInput {
   status?: string
   labels?: string[]
   relationships?: TaskRelationship[]
-  priority?: TaskPriority
+  priority?: TaskPriority | null
 }
 
 export interface ProviderAdapter {
