@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "${PORT:-3000}:3000"
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -17,8 +17,8 @@ services:
   pocketbase:
     image: ghcr.io/muchobien/pocketbase:latest
     restart: unless-stopped
-    ports:
-      - "${POCKETBASE_PORT:-8090}:8090"
+    expose:
+      - "8090"
     volumes:
       - pb_data:/pb_data
       - ./pb_migrations:/pb_migrations
