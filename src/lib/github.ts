@@ -642,6 +642,36 @@ export async function renameGitHubLabel(
   }
 }
 
+export async function deleteGitHubLabel(
+  repoUrl: string,
+  name: string,
+  token?: string | null
+): Promise<void> {
+  const repoInfo = parseGitHubRepo(repoUrl)
+  if (!repoInfo || !name) return
+
+  const resolvedToken = token || process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN
+  if (!resolvedToken) return
+
+  const { owner, repo } = repoInfo
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/labels/${encodeURIComponent(name)}`,
+      {
+        method: 'DELETE',
+        headers: getGitHubHeaders(resolvedToken)
+      }
+    )
+
+    if (!res.ok && res.status !== 404) {
+      console.error(`Failed to delete GitHub label: HTTP ${res.status}`)
+    }
+  } catch (err) {
+    console.error('Failed to delete GitHub label:', err)
+  }
+}
+
 export async function updateGitHubIssueStatus(
   repoUrl: string,
   issueNumber: number | string,

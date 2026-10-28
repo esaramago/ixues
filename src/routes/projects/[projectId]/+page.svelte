@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation'
   import Back from '@/components/Back.svelte'
+  import ConfirmDialog from '@/components/ConfirmDialog.svelte'
   import Grid from '@/components/Grid.svelte'
   import StatusForm from '@/components/StatusForm.svelte'
   import Task from '@/components/Task.svelte'
@@ -12,8 +13,19 @@
 
   let isCreateDialogOpen = $state(false)
   let editingStatus = $state<Status | null>(null)
+  let deletingStatus = $state<Status | null>(null)
   let tasks = $state<TaskType[]>([])
   let onlyMyTasks = $state(false)
+
+  function canDeleteStatus(status: Status): boolean {
+    if (data.project.type === 'local') return true
+    if (data.project.provider === 'github') {
+      const key = (status.key || status.id || '').toLowerCase()
+      const name = (status.name || '').toLowerCase()
+      return key !== 'open' && key !== 'closed' && name !== 'open' && name !== 'closed'
+    }
+    return false
+  }
 
   $effect(() => {
     tasks = data.tasks
@@ -236,6 +248,8 @@
                         handleMoveStatus(status.id, 'left')
                       } else if (val === 'move-right') {
                         handleMoveStatus(status.id, 'right')
+                      } else if (val === 'delete') {
+                        deletingStatus = status
                       }
                     }}
                   >
@@ -270,6 +284,18 @@
                       <wa-icon slot="icon" name="pen" variant="regular"></wa-icon>
                       Edit status
                     </wa-dropdown-item>
+                    {#if canDeleteStatus(status)}
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <wa-dropdown-item
+                        value="delete"
+                        variant="danger"
+                        onclick={() => (deletingStatus = status)}
+                      >
+                        <wa-icon slot="icon" name="trash" variant="regular"></wa-icon>
+                        Delete status
+                      </wa-dropdown-item>
+                    {/if}
                   </wa-dropdown>
                 </Grid>
               </Grid>
@@ -351,6 +377,25 @@
     />
   {/if}
 </wa-dialog>
+
+{#if deletingStatus}
+  <ConfirmDialog
+    open={Boolean(deletingStatus)}
+    title="Delete Status"
+    message={`Are you sure you want to delete status "${deletingStatus.name}"? Any tasks in this column will become unassigned.`}
+    confirmLabel="Delete Status"
+    confirmVariant="danger"
+    action="?/deleteStatus"
+    oncancel={() => {
+      deletingStatus = null
+    }}
+    onconfirm={() => {
+      deletingStatus = null
+    }}
+  >
+    <input type="hidden" name="statusId" value={deletingStatus.id} />
+  </ConfirmDialog>
+{/if}
 
 
 <style>
