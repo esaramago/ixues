@@ -9,8 +9,13 @@ import {
   isSyncProject,
   updateProviderIssueStatus
 } from '@/lib/providers'
+import {
+  ensureGitHubLabelExists,
+  formatGitHubStatusLabel,
+  renameGitHubLabel
+} from '@/lib/github'
 import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
-import { getProjectByIdOrSlug } from '@/lib/slug'
+import { getProjectByIdOrSlug, slugify } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.user) {
@@ -63,29 +68,77 @@ export const load: PageServerLoad = async ({ params, locals }) => {
             })
           }
         } else {
-          const existingKeys = new Set(localStatusRecords.map((r) => r.key || r.id))
-          let nextOrder = localStatusRecords.length > 0
-            ? Math.max(...localStatusRecords.map((r) => (r.order ?? 0))) + 1
+          let currentStatusRecords = [...localStatusRecords]
+
+          // Auto-sync: if a status was removed on the provider, delete it from PocketBase
+          if (providerStatuses.length > 0) {
+            const filteredRecords: typeof localStatusRecords = []
+            for (const r of currentStatusRecords) {
+              const rKey = r.key || r.id
+              // Keep native open/closed statuses for GitHub
+              if (
+                project.provider === 'github' &&
+                (rKey === 'open' || rKey === 'closed' || r.name.toLowerCase() === 'open' || r.name.toLowerCase() === 'closed')
+              ) {
+                filteredRecords.push(r)
+                continue
+              }
+
+              const stillExists = providerStatuses.some((ps) => {
+                const norm = (s: string) => s.toLowerCase().replace(/[\s\-_:]+/g, '')
+                return (
+                  norm(ps.name) === norm(r.name) ||
+                  (ps.key && r.key && norm(ps.key) === norm(r.key)) ||
+                  ps.id === rKey ||
+                  (ps.key && ps.key === rKey)
+                )
+              })
+
+              if (!stillExists) {
+                try {
+                  await locals.pb.collection('statuses').delete(r.id)
+                } catch (delErr) {
+                  console.error('Failed to delete removed provider status from PB:', delErr)
+                }
+              } else {
+                filteredRecords.push(r)
+              }
+            }
+            currentStatusRecords = filteredRecords
+          }
+
+          let nextOrder = currentStatusRecords.length > 0
+            ? Math.max(...currentStatusRecords.map((r) => (r.order ?? 0))) + 1
             : 0
 
           for (const ps of providerStatuses) {
-            if (!existingKeys.has(ps.id)) {
+            const psKey = ps.key || ps.id
+            const alreadyExists = currentStatusRecords.some((r) => {
+              const norm = (s: string) => s.toLowerCase().replace(/[\s\-_:]+/g, '')
+              return (
+                norm(r.name) === norm(ps.name) ||
+                (r.key && ps.key && norm(r.key) === norm(ps.key)) ||
+                r.key === psKey ||
+                r.id === ps.id
+              )
+            })
+
+            if (!alreadyExists) {
               const record = await locals.pb.collection('statuses').create({
                 name: ps.name,
                 project: project.id,
                 order: nextOrder++,
                 color: ps.color,
                 user: locals.user.id,
-                key: ps.id
+                key: psKey
               })
-              localStatusRecords.push(record)
-              existingKeys.add(ps.id)
+              currentStatusRecords.push(record)
             }
           }
 
-          localStatusRecords.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          currentStatusRecords.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
-          statuses = localStatusRecords.map((r) => ({
+          statuses = currentStatusRecords.map((r) => ({
             id: r.key || r.id,
             pbId: r.id,
             key: r.key,
@@ -103,7 +156,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
       if (project.repo_url) {
         try {
-          tasks = await fetchProviderIssues(project, locals.user.id, decryptedToken, locals.user.email)
+          tasks = await fetchProviderIssues(project, locals.user.id, decryptedToken, locals.user.email, statuses)
         } catch (err: unknown) {
           syncError = err instanceof Error ? err.message : `Failed to fetch issues from ${project.provider || 'provider'}`
           console.error('Error fetching provider issues:', syncError)
@@ -131,6 +184,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     }
 
     return {
+      title: `${project.name} · Ixues`,
       project: sanitizeProject(project),
       statuses,
       tasks,
@@ -160,9 +214,9 @@ export const actions: Actions = {
     const orderStr = (data.get('order') as string)?.trim()
     const color = (data.get('color') as string)?.trim() || null
 
-    if (project.type === 'sync') {
+    if (project.type === 'sync' && project.provider !== 'github') {
       return fail(400, {
-        error: 'Statuses cannot be created for synchronized projects.',
+        error: 'Statuses cannot be created for this synchronized project.',
         name,
         order: orderStr,
         color
@@ -188,14 +242,31 @@ export const actions: Actions = {
       order = existing.length > 0 ? (existing[0].order ?? 0) + 1 : 0
     }
 
+    const statusKey = slugify(name)
+
     try {
       await locals.pb.collection('statuses').create({
         name,
         project: project.id,
         order,
         color,
-        user: locals.user.id
+        user: locals.user.id,
+        key: statusKey
       })
+
+      if (project.provider === 'github' && project.repo_url) {
+        try {
+          const decryptedToken = decryptToken(project.token)
+          await ensureGitHubLabelExists(
+            project.repo_url,
+            formatGitHubStatusLabel(name),
+            color,
+            decryptedToken
+          )
+        } catch (err) {
+          console.error('Failed to create GitHub status label:', err)
+        }
+      }
     } catch (err: unknown) {
       const pbError = err as { status?: number; data?: { message?: string }; message?: string }
       return fail(pbError?.status || 500, {
@@ -240,7 +311,7 @@ export const actions: Actions = {
       })
     }
 
-    if (!name && project.type === 'local') {
+    if (!name && (project.type === 'local' || project.provider === 'github')) {
       return fail(400, {
         error: 'Status name is required.',
         statusId,
@@ -285,8 +356,40 @@ export const actions: Actions = {
       if (name) {
         updatePayload.name = name
       }
+      if (name && project.provider === 'github') {
+        updatePayload.key = slugify(name)
+      }
 
       await locals.pb.collection('statuses').update(existingStatus.id, updatePayload)
+
+      if (project.provider === 'github' && project.repo_url && name) {
+        const oldLabelName = formatGitHubStatusLabel(existingStatus.name)
+        const newLabelName = formatGitHubStatusLabel(name)
+        const decryptedToken = decryptToken(project.token)
+
+        if (oldLabelName !== newLabelName) {
+          try {
+            await renameGitHubLabel(
+              project.repo_url,
+              oldLabelName,
+              newLabelName,
+              color,
+              decryptedToken
+            )
+          } catch (err) {
+            console.error('Failed to rename GitHub label:', err)
+          }
+        } else if (color && color !== existingStatus.color) {
+          try {
+            await ensureGitHubLabelExists(
+              project.repo_url,
+              newLabelName,
+              color,
+              decryptedToken
+            )
+          } catch {}
+        }
+      }
     } catch (err: unknown) {
       const pbError = err as { status?: number; data?: { message?: string }; message?: string }
       return fail(pbError?.status || 500, {
@@ -399,12 +502,31 @@ export const actions: Actions = {
 
       try {
         const decryptedToken = decryptToken(project.token)
+        let projectStatuses: Status[] = []
+        try {
+          const statusRecords = await locals.pb.collection('statuses').getFullList({
+            filter: `project = "${project.id}"`,
+            sort: 'order'
+          })
+          projectStatuses = statusRecords.map((r) => ({
+            id: r.key || r.id,
+            pbId: r.id,
+            key: r.key,
+            name: r.name,
+            order: r.order,
+            color: r.color,
+            project: r.project,
+            user: r.user
+          }))
+        } catch {}
+
         await updateProviderIssueStatus(
           project,
           taskId,
           statusId,
           decryptedToken,
-          locals.user.email
+          locals.user.email,
+          projectStatuses
         )
         return {
           success: true

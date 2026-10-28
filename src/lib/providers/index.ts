@@ -1,6 +1,6 @@
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
-import type { Task } from '@/types/task'
+import type { Task, TaskLabel } from '@/types/task'
 import { githubAdapter } from './github'
 import { jiraAdapter } from './jira'
 import type { CreateIssueInput, ProviderAdapter, UpdateIssueInput } from './types'
@@ -38,11 +38,12 @@ export async function fetchProviderIssues(
   project: Project,
   userId: string,
   token?: string | null,
-  userEmail?: string | null
+  userEmail?: string | null,
+  statuses?: Status[]
 ): Promise<Task[]> {
   const provider = getProvider(project)
   if (!provider) return []
-  return provider.getIssues(project, userId, token, userEmail)
+  return provider.getIssues(project, userId, token, userEmail, statuses)
 }
 
 export async function fetchProviderIssue(
@@ -50,18 +51,19 @@ export async function fetchProviderIssue(
   issueIdOrSlug: string,
   userId: string,
   token?: string | null,
-  userEmail?: string | null
+  userEmail?: string | null,
+  statuses?: Status[]
 ): Promise<Task | null> {
   const provider = getProvider(project)
   if (!provider) return null
-  return provider.getIssue(project, issueIdOrSlug, userId, token, userEmail)
+  return provider.getIssue(project, issueIdOrSlug, userId, token, userEmail, statuses)
 }
 
 export async function fetchProviderLabels(
   project: Project,
   token?: string | null,
   userEmail?: string | null
-): Promise<string[]> {
+): Promise<TaskLabel[]> {
   const provider = getProvider(project)
   if (!provider) return []
   return provider.getLabels(project, token, userEmail)
@@ -72,13 +74,14 @@ export async function createProviderIssue(
   data: CreateIssueInput,
   userId: string,
   token?: string | null,
-  userEmail?: string | null
+  userEmail?: string | null,
+  statuses?: Status[]
 ): Promise<Task> {
   const provider = getProvider(project)
   if (!provider) {
     throw new Error(`Unsupported or unconfigured synchronization provider "${project.provider}".`)
   }
-  return provider.createIssue(project, data, userId, token, userEmail)
+  return provider.createIssue(project, data, userId, token, userEmail, statuses)
 }
 
 export async function updateProviderIssue(
@@ -86,13 +89,14 @@ export async function updateProviderIssue(
   issueIdOrSlug: string,
   updates: UpdateIssueInput,
   token?: string | null,
-  userEmail?: string | null
+  userEmail?: string | null,
+  statuses?: Status[]
 ): Promise<void> {
   const provider = getProvider(project)
   if (!provider) {
     throw new Error(`Unsupported or unconfigured synchronization provider "${project.provider}".`)
   }
-  return provider.updateIssue(project, issueIdOrSlug, updates, token, userEmail)
+  return provider.updateIssue(project, issueIdOrSlug, updates, token, userEmail, statuses)
 }
 
 export async function updateProviderIssueStatus(
@@ -100,13 +104,14 @@ export async function updateProviderIssueStatus(
   issueIdOrSlug: string,
   statusId: string,
   token?: string | null,
-  userEmail?: string | null
+  userEmail?: string | null,
+  statuses?: Status[]
 ): Promise<void> {
   const provider = getProvider(project)
   if (!provider) {
     throw new Error(`Unsupported or unconfigured synchronization provider "${project.provider}".`)
   }
-  return provider.updateIssueStatus(project, issueIdOrSlug, statusId, token, userEmail)
+  return provider.updateIssueStatus(project, issueIdOrSlug, statusId, token, userEmail, statuses)
 }
 
 export async function deleteProviderIssue(

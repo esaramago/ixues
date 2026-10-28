@@ -12,11 +12,13 @@ export const load: PageServerLoad = async ({ locals }) => {
     const projects = await locals.pb.collection('projects').getFullList()
 
     return {
+      title: 'Projects · Ixues',
       projects: sanitizeProjects(structuredClone(projects) as unknown as Project[]),
     }
   } catch (err) {
     console.error('Error fetching projects:', err)
     return {
+      title: 'Projects · Ixues',
       projects: [],
     }
   }

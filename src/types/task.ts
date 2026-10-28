@@ -1,8 +1,60 @@
 import type { User } from '@/types/user'
 import type { Status } from '@/types/status'
+import { getDeterministicColor } from '@/lib/colors'
 
 export const TASK_PRIORITIES = ['lowest', 'low', 'medium', 'high', 'urgent'] as const
 export type TaskPriority = (typeof TASK_PRIORITIES)[number]
+
+export type PriorityVariant = 'neutral' | 'brand' | 'success' | 'warning' | 'danger'
+
+export interface PriorityOption {
+  value: TaskPriority
+  label: string
+  icon: string
+  variant: PriorityVariant
+}
+
+export const PRIORITY_OPTIONS: readonly PriorityOption[] = [
+  { value: 'lowest', label: 'Lowest', icon: 'angles-down', variant: 'neutral' },
+  { value: 'low', label: 'Low', icon: 'angle-down', variant: 'success' },
+  { value: 'medium', label: 'Medium', icon: 'equals', variant: 'brand' },
+  { value: 'high', label: 'High', icon: 'angle-up', variant: 'warning' },
+  { value: 'urgent', label: 'Urgent', icon: 'angles-up', variant: 'danger' }
+] as const
+
+export function getPriorityIcon(priority?: TaskPriority | string | null): string | undefined {
+  switch (priority) {
+    case 'urgent':
+      return 'angles-up'
+    case 'high':
+      return 'angle-up'
+    case 'medium':
+      return 'equals'
+    case 'low':
+      return 'angle-down'
+    case 'lowest':
+      return 'angles-down'
+    default:
+      return undefined
+  }
+}
+
+export function getPriorityVariant(
+  priority?: TaskPriority | string | null
+): PriorityVariant {
+  switch (priority) {
+    case 'urgent':
+    case 'high':
+      return 'danger'
+    case 'medium':
+      return 'warning'
+    case 'low':
+    case 'lowest':
+      return 'success'
+    default:
+      return 'neutral'
+  }
+}
 
 export const DEFAULT_LOCAL_LABELS = [
   'bug',
@@ -13,6 +65,26 @@ export const DEFAULT_LOCAL_LABELS = [
 ] as const
 
 export type LocalTaskLabel = (typeof DEFAULT_LOCAL_LABELS)[number]
+
+export interface TaskLabel {
+  name: string
+  color?: string
+}
+
+export type TaskLabelItem = string | TaskLabel
+
+export function getLabelInfo(label: TaskLabelItem): TaskLabel {
+  if (typeof label === 'string') {
+    return {
+      name: label,
+      color: getDeterministicColor(label)
+    }
+  }
+  return {
+    name: label.name,
+    color: label.color || getDeterministicColor(label.name)
+  }
+}
 
 export type RelationshipType = 'relates_to' | 'blocked_by' | 'blocks' | 'duplicate_of'
 
@@ -105,7 +177,7 @@ export interface Task {
   user: string
   assigned?: string | null
   url?: string | null
-  labels?: string[]
+  labels?: TaskLabelItem[]
   relationships?: TaskRelationship[]
   branches?: TaskBranch[]
   expand?: {

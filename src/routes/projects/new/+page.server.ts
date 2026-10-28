@@ -7,6 +7,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
 		throw redirect(303, '/login')
 	}
+
+	return {
+		title: 'New project · Ixues'
+	}
 }
 
 export const actions: Actions = {

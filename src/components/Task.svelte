@@ -1,6 +1,6 @@
 <script lang="ts">
   import Grid from '@/components/Grid.svelte'
-  import type { Task, TaskPriority } from '@/types/task'
+  import { getLabelInfo, getPriorityIcon, getPriorityVariant, type Task } from '@/types/task'
 
   interface Props {
     task: Task
@@ -13,24 +13,6 @@
 
   let isDragging = $state(false)
   let projectIdentifier = $derived(projectId ?? task.project)
-
-  function getPriorityVariant(
-    priority?: TaskPriority | null
-  ): 'neutral' | 'brand' | 'success' | 'warning' | 'danger' {
-    switch (priority) {
-      case 'urgent':
-        return 'danger'
-      case 'high':
-        return 'warning'
-      case 'medium':
-        return 'brand'
-      case 'low':
-        return 'success'
-      case 'lowest':
-      default:
-        return 'neutral'
-    }
-  }
 
   function handleDragStart(event: DragEvent) {
     if (event.dataTransfer) {
@@ -79,14 +61,23 @@
       </Grid>
       <Grid gap="xs" wrap={true}>
         {#if task.priority}
-          <wa-badge size="s" pill variant={getPriorityVariant(task.priority)}>
-            {task.priority}
+          {@const priorityIcon = getPriorityIcon(task.priority)}
+          <wa-badge size="s" pill variant={getPriorityVariant(task.priority)} title={task.priority}>
+            {#if priorityIcon}
+              <wa-icon name={priorityIcon} variant="solid"></wa-icon>
+            {/if}
           </wa-badge>
         {/if}
         {#if task.labels && task.labels.length > 0}
-          {#each task.labels as label (label)}
-            <wa-badge size="s" pill variant="neutral">
-              {label}
+          {#each task.labels as item (typeof item === 'string' ? item : item.name)}
+            {@const label = getLabelInfo(item)}
+            <wa-badge
+              size="s"
+              pill
+              variant="neutral"
+              style={label.color ? `--label-color: ${label.color};` : undefined}
+            >
+              {label.name}
             </wa-badge>
           {/each}
         {/if}

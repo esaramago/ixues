@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { navigating } from '$app/state'
+  import { navigating, page } from '$app/state'
   import '@/css/main.css'
   import '@awesome.me/webawesome/dist/styles/webawesome.css'
   import '@awesome.me/webawesome/dist/components/avatar/avatar.js'
@@ -25,6 +25,10 @@
 
   let { children } = $props()
 </script>
+
+<svelte:head>
+  <title>{page.data.title ?? 'Ixues'}</title>
+</svelte:head>
 
 {#if navigating.to}
   <wa-progress-bar indeterminate></wa-progress-bar>

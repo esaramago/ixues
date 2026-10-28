@@ -1,5 +1,6 @@
 import type { Status } from '@/types/status'
-import type { Task, TaskBranch, TaskPriority, TaskRelationship } from '@/types/task'
+import type { Task, TaskBranch, TaskLabel, TaskPriority, TaskRelationship } from '@/types/task'
+import { getDeterministicColor } from '@/lib/colors'
 import { slugify } from '@/lib/slug'
 
 export interface JiraIssueResponse {
@@ -360,7 +361,12 @@ export function mapJiraIssueToTask(
     user: userId,
     assigned: assignee?.displayName || null,
     url: `${hostUrl}/browse/${issue.key}`,
-    labels: Array.isArray(issue.fields.labels) ? issue.fields.labels : [],
+    labels: Array.isArray(issue.fields.labels)
+      ? issue.fields.labels.map((l) => ({
+          name: l,
+          color: getDeterministicColor(l)
+        }))
+      : [],
     relationships,
     branches,
     expand: expandAssigned ? { assigned: expandAssigned } : undefined,
@@ -1158,7 +1164,7 @@ export async function fetchJiraLabels(
   userEmail?: string | null,
   projectName?: string,
   projectSlug?: string
-): Promise<string[]> {
+): Promise<TaskLabel[]> {
   try {
     const issues = await fetchJiraIssues(
       repoUrl,
@@ -1169,13 +1175,17 @@ export async function fetchJiraLabels(
       projectName,
       projectSlug
     )
-    const labelSet = new Set<string>()
+    const labelMap = new Map<string, TaskLabel>()
     for (const issue of issues) {
       for (const l of issue.labels || []) {
-        if (l) labelSet.add(l)
+        const name = typeof l === 'string' ? l : l.name
+        if (name && !labelMap.has(name)) {
+          const color = typeof l === 'string' ? getDeterministicColor(name) : (l.color || getDeterministicColor(name))
+          labelMap.set(name, { name, color })
+        }
       }
     }
-    return Array.from(labelSet)
+    return Array.from(labelMap.values())
   } catch (err) {
     console.error('Failed to fetch Jira labels:', err)
     return []

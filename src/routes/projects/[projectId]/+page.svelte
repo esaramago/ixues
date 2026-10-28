@@ -157,7 +157,7 @@
           <wa-icon slot="icon" name="pen-to-square" variant="solid"></wa-icon>
           Edit Project
         </wa-dropdown-item>
-        {#if data.project.type === 'local'}
+        {#if data.project.type === 'local' || data.project.provider === 'github'}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <wa-dropdown-item
@@ -345,7 +345,7 @@
       status={editingStatus}
       defaultOrder={editingStatus.order}
       {form}
-      isSync={data.project.type === 'sync'}
+      isSync={data.project.type === 'sync' && data.project.provider !== 'github'}
       oncancel={() => (editingStatus = null)}
       onsuccess={() => (editingStatus = null)}
     />

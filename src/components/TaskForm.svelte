@@ -6,11 +6,14 @@
   import type { Status } from '@/types/status'
   import {
     DEFAULT_LOCAL_LABELS,
+    PRIORITY_OPTIONS,
     RELATIONSHIP_TYPES,
+    getPriorityIcon,
     getRelationshipLabel,
     type RelationshipType,
     type Task,
     type TaskBranch,
+    type TaskLabelItem,
     type TaskPriority,
     type TaskRelationship
   } from '@/types/task'
@@ -31,7 +34,7 @@
     project: Pick<Project, 'id' | 'name'> & Partial<Pick<Project, 'type' | 'provider' | 'repo_url' | 'slug'>>
     statuses: Status[]
     users?: User[]
-    availableLabels?: string[]
+    availableLabels?: TaskLabelItem[]
     availableTasks?: Task[]
     task?: Task | null
     defaultStatus?: string
@@ -105,7 +108,8 @@
         : project.type === 'local'
           ? [...DEFAULT_LOCAL_LABELS]
           : []
-    for (const name of sourceList) {
+    for (const item of sourceList) {
+      const name = typeof item === 'string' ? item : item.name
       if (name && !list.includes(name)) list.push(name)
     }
     for (const name of selectedLabels) {
@@ -121,7 +125,9 @@
       priority = task ? (task.priority || '') : 'medium'
       status = task ? (task.status || '') : (defaultStatus || statuses[0]?.id || '')
       assigned = task ? (task.assigned || '') : defaultAssignedValue
-      selectedLabels = Array.isArray(task?.labels) ? [...task.labels] : []
+      selectedLabels = Array.isArray(task?.labels)
+        ? task.labels.map((l) => (typeof l === 'string' ? l : l.name))
+        : []
       selectedRelationships = Array.isArray(task?.relationships) ? [...task.relationships] : []
     }
     if (form?.priority !== undefined) {
@@ -255,12 +261,16 @@
               value={priority}
               onchange={handlePriorityChange}
             >
+              {#if priority && getPriorityIcon(priority)}
+                <wa-icon slot="start" name={getPriorityIcon(priority)} variant="solid"></wa-icon>
+              {/if}
               <wa-option value="">No priority</wa-option>
-              <wa-option value="lowest">Lowest</wa-option>
-              <wa-option value="low">Low</wa-option>
-              <wa-option value="medium">Medium</wa-option>
-              <wa-option value="high">High</wa-option>
-              <wa-option value="urgent">Urgent</wa-option>
+              {#each PRIORITY_OPTIONS as option (option.value)}
+                <wa-option value={option.value}>
+                  <wa-icon slot="start" name={option.icon} variant="solid"></wa-icon>
+                  {option.label}
+                </wa-option>
+              {/each}
             </wa-select>
 
             {#if statuses.length > 0}

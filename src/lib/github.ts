@@ -1,5 +1,6 @@
 import type { Status } from '@/types/status'
-import type { Task, TaskBranch, TaskPriority, TaskRelationship } from '@/types/task'
+import type { Task, TaskBranch, TaskLabel, TaskPriority, TaskRelationship } from '@/types/task'
+import { getDeterministicColor, normalizeHexColor } from '@/lib/colors'
 import { slugify } from '@/lib/slug'
 
 export interface GitHubIssueResponse {
@@ -105,7 +106,46 @@ function extractPriority(
   return null
 }
 
-export function getGitHubStatuses(projectId: string, userId: string): Status[] {
+export function isGitHubStatusLabel(labelName: string): boolean {
+  return /^status:\s*.+$/i.test(labelName.trim())
+}
+
+export function formatGitHubStatusLabel(statusName: string): string {
+  return `status: ${statusName.trim().toLowerCase()}`
+}
+
+export function parseGitHubStatusLabel(labelName: string): string | null {
+  const match = labelName.trim().match(/^status:\s*(.+)$/i)
+  return match ? match[1].trim() : null
+}
+
+export function matchStatusByNameOrKey(
+  statusString: string,
+  statuses: Status[]
+): Status | undefined {
+  const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_:]+/g, '')
+  const target = normalize(statusString)
+  return statuses.find((s) => {
+    if (normalize(s.name) === target) return true
+    if (s.key && normalize(s.key) === target) return true
+    if (normalize(s.id) === target) return true
+    return false
+  })
+}
+
+export function isClosedStatus(status: { name?: string; key?: string | null; id?: string }): boolean {
+  const norm = (status.key || status.name || status.id || '').toLowerCase().trim()
+  return (
+    norm === 'closed' ||
+    norm === 'done' ||
+    norm === 'resolved' ||
+    norm === 'completed' ||
+    norm === 'released' ||
+    norm === 'abandoned'
+  )
+}
+
+export function getDefaultGitHubStatuses(projectId: string, userId: string): Status[] {
   return [
     {
       id: 'open',
@@ -113,7 +153,8 @@ export function getGitHubStatuses(projectId: string, userId: string): Status[] {
       order: 0,
       color: '#2da44e',
       project: projectId,
-      user: userId
+      user: userId,
+      key: 'open'
     },
     {
       id: 'closed',
@@ -121,9 +162,79 @@ export function getGitHubStatuses(projectId: string, userId: string): Status[] {
       order: 1,
       color: '#8250df',
       project: projectId,
-      user: userId
+      user: userId,
+      key: 'closed'
     }
   ]
+}
+
+export async function fetchGitHubStatuses(
+  repoUrl?: string | null,
+  projectId?: string,
+  userId?: string,
+  token?: string | null
+): Promise<Status[]> {
+  const defaults = getDefaultGitHubStatuses(projectId || '', userId || '')
+  if (!repoUrl) return defaults
+
+  const repoInfo = parseGitHubRepo(repoUrl)
+  if (!repoInfo) return defaults
+
+  try {
+    const { owner, repo } = repoInfo
+    const url = `https://api.github.com/repos/${owner}/${repo}/labels?per_page=100`
+    const res = await fetch(url, {
+      headers: getGitHubHeaders(token)
+    })
+
+    if (!res.ok) return defaults
+
+    const labels = (await res.json()) as Array<{ name?: string; color?: string }>
+    if (!Array.isArray(labels)) return defaults
+
+    const statusLabels = labels.filter((l) => l.name && isGitHubStatusLabel(l.name))
+    if (statusLabels.length === 0) {
+      return defaults
+    }
+
+    const discovered: Status[] = statusLabels.map((l, index) => {
+      const rawName = l.name ? parseGitHubStatusLabel(l.name) || l.name : ''
+      const displayName = rawName
+        .split(' ')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ')
+      const key = slugify(rawName)
+      return {
+        id: key,
+        name: displayName,
+        order: index + 1,
+        color: l.color ? `#${l.color}` : '#6b7280',
+        project: projectId || '',
+        user: userId || '',
+        key
+      }
+    })
+
+    const hasOpen = discovered.some((s) => s.key === 'open' || s.name.toLowerCase() === 'open')
+    const hasClosed = discovered.some((s) => isClosedStatus(s))
+
+    const result: Status[] = []
+    if (!hasOpen) {
+      result.push(defaults[0])
+    }
+    result.push(...discovered)
+    if (!hasClosed) {
+      result.push(defaults[1])
+    }
+
+    return result.map((s, index) => ({ ...s, order: index }))
+  } catch {
+    return defaults
+  }
+}
+
+export function getGitHubStatuses(projectId: string, userId: string): Status[] {
+  return getDefaultGitHubStatuses(projectId, userId)
 }
 
 export function mapGitHubIssueToTask(
@@ -133,12 +244,49 @@ export function mapGitHubIssueToTask(
   extra?: {
     relationships?: TaskRelationship[]
     branches?: TaskBranch[]
+    statuses?: Status[]
   }
 ): Task {
   const priority = extractPriority(issue.labels || [])
-  const labelNames = (issue.labels || [])
+  const allLabelNames = (issue.labels || [])
     .map((l) => (typeof l === 'string' ? l : l.name || ''))
     .filter(Boolean)
+
+  let taskStatus: string | null = null
+
+  if (extra?.statuses && extra.statuses.length > 0) {
+    for (const label of allLabelNames) {
+      const parsed = parseGitHubStatusLabel(label)
+      if (parsed) {
+        const matched = matchStatusByNameOrKey(parsed, extra.statuses)
+        if (matched) {
+          taskStatus = matched.id
+          break
+        }
+      }
+    }
+
+    if (!taskStatus) {
+      if (issue.state === 'closed') {
+        const closed = extra.statuses.find(isClosedStatus) || extra.statuses[extra.statuses.length - 1]
+        taskStatus = closed ? closed.id : 'closed'
+      } else {
+        const open = extra.statuses.find((s) => !isClosedStatus(s)) || extra.statuses[0]
+        taskStatus = open ? open.id : 'open'
+      }
+    }
+  } else {
+    taskStatus = issue.state === 'closed' ? 'closed' : 'open'
+  }
+
+  const contentLabels: TaskLabel[] = (issue.labels || [])
+    .map((l) => {
+      const name = typeof l === 'string' ? l : l.name || ''
+      const rawColor = typeof l === 'string' ? undefined : l.color
+      const color = normalizeHexColor(rawColor) || getDeterministicColor(name)
+      return { name, color }
+    })
+    .filter((l) => Boolean(l.name) && !isGitHubStatusLabel(l.name))
 
   return {
     id: String(issue.number),
@@ -147,12 +295,12 @@ export function mapGitHubIssueToTask(
     slug: slugify(issue.title),
     description: issue.body || '',
     priority,
-    status: issue.state === 'closed' ? 'closed' : 'open',
+    status: taskStatus,
     project: projectId,
     user: userId,
     assigned: issue.assignee?.login || null,
     url: issue.html_url,
-    labels: labelNames,
+    labels: contentLabels,
     relationships: extra?.relationships || [],
     branches: extra?.branches || [],
     expand: issue.assignee
@@ -173,7 +321,8 @@ export async function fetchGitHubIssues(
   repoUrl: string,
   projectId: string,
   userId: string,
-  token?: string | null
+  token?: string | null,
+  statuses?: Status[]
 ): Promise<Task[]> {
   const repoInfo = parseGitHubRepo(repoUrl)
   if (!repoInfo) {
@@ -203,7 +352,7 @@ export async function fetchGitHubIssues(
   // Filter out pull requests, as GitHub returns both issues and pull requests in the issues endpoint
   const issuesOnly = data.filter((item) => !item.pull_request)
 
-  return issuesOnly.map((issue) => mapGitHubIssueToTask(issue, projectId, userId))
+  return issuesOnly.map((issue) => mapGitHubIssueToTask(issue, projectId, userId, { statuses }))
 }
 
 export async function fetchGitHubBranches(
@@ -368,11 +517,12 @@ export async function fetchGitHubIssue(
   issueNumber: number | string,
   projectId: string,
   userId: string,
-  token?: string | null
+  token?: string | null,
+  statuses?: Status[]
 ): Promise<Task | null> {
   const isNumeric = /^\d+$/.test(String(issueNumber).trim())
   if (!isNumeric) {
-    const allIssues = await fetchGitHubIssues(repoUrl, projectId, userId, token)
+    const allIssues = await fetchGitHubIssues(repoUrl, projectId, userId, token, statuses)
     return allIssues.find((t) => t.slug === issueNumber || t.id === String(issueNumber)) || null
   }
 
@@ -403,7 +553,162 @@ export async function fetchGitHubIssue(
     fetchGitHubRelationships(repoUrl, issue.number, token)
   ])
 
-  return mapGitHubIssueToTask(issue, projectId, userId, { branches, relationships })
+  return mapGitHubIssueToTask(issue, projectId, userId, { branches, relationships, statuses })
+}
+
+export async function ensureGitHubLabelExists(
+  repoUrl: string,
+  labelName: string,
+  color?: string | null,
+  token?: string | null
+): Promise<void> {
+  const repoInfo = parseGitHubRepo(repoUrl)
+  if (!repoInfo) return
+
+  const resolvedToken = token || process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN
+  if (!resolvedToken) return
+
+  const { owner, repo } = repoInfo
+  const hexColor = (color || '#6b7280').replace('#', '').trim()
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/labels`, {
+      method: 'POST',
+      headers: {
+        ...getGitHubHeaders(resolvedToken),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: labelName,
+        color: hexColor
+      })
+    })
+
+    if (res.status === 422 && color) {
+      await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/labels/${encodeURIComponent(labelName)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            ...getGitHubHeaders(resolvedToken),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ color: hexColor })
+        }
+      )
+    }
+  } catch (err) {
+    console.error('Failed to ensure GitHub label exists:', err)
+  }
+}
+
+export async function renameGitHubLabel(
+  repoUrl: string,
+  oldName: string,
+  newName: string,
+  color?: string | null,
+  token?: string | null
+): Promise<void> {
+  const repoInfo = parseGitHubRepo(repoUrl)
+  if (!repoInfo || oldName === newName) return
+
+  const resolvedToken = token || process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN
+  if (!resolvedToken) return
+
+  const { owner, repo } = repoInfo
+  const payload: Record<string, string> = { new_name: newName }
+  if (color) {
+    payload.color = color.replace('#', '').trim()
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/labels/${encodeURIComponent(oldName)}`,
+      {
+        method: 'PATCH',
+        headers: {
+          ...getGitHubHeaders(resolvedToken),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      }
+    )
+
+    if (!res.ok && res.status === 404) {
+      await ensureGitHubLabelExists(repoUrl, newName, color, resolvedToken)
+    }
+  } catch (err) {
+    console.error('Failed to rename GitHub label:', err)
+  }
+}
+
+export async function updateGitHubIssueStatus(
+  repoUrl: string,
+  issueNumber: number | string,
+  targetStatusId: string,
+  token?: string | null,
+  statuses?: Status[]
+): Promise<void> {
+  const repoInfo = parseGitHubRepo(repoUrl)
+  if (!repoInfo) {
+    throw new Error('Invalid GitHub repository URL')
+  }
+
+  const resolvedToken = token || process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN
+  if (!resolvedToken) {
+    throw new Error('A GitHub token is required to update issue status.')
+  }
+
+  const { owner, repo } = repoInfo
+  const issueUrl = `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`
+
+  const getRes = await fetch(issueUrl, {
+    headers: getGitHubHeaders(resolvedToken)
+  })
+
+  if (!getRes.ok) {
+    throw new Error(`Failed to fetch GitHub issue #${issueNumber} before updating status.`)
+  }
+
+  const issue = (await getRes.json()) as GitHubIssueResponse
+
+  const matchedStatus = statuses ? matchStatusByNameOrKey(targetStatusId, statuses) : null
+  const statusName = matchedStatus ? matchedStatus.name : targetStatusId
+  const isClosed = matchedStatus ? isClosedStatus(matchedStatus) : targetStatusId === 'closed'
+  const newStatusLabel = formatGitHubStatusLabel(statusName)
+
+  const existingLabels = (issue.labels || [])
+    .map((l) => (typeof l === 'string' ? l : l.name || ''))
+    .filter(Boolean)
+
+  const nonStatusLabels = existingLabels.filter((label) => !isGitHubStatusLabel(label))
+  const updatedLabels = [...nonStatusLabels, newStatusLabel]
+
+  const patchRes = await fetch(issueUrl, {
+    method: 'PATCH',
+    headers: {
+      ...getGitHubHeaders(resolvedToken),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      state: isClosed ? 'closed' : 'open',
+      labels: updatedLabels
+    })
+  })
+
+  if (!patchRes.ok) {
+    const errorData = (await patchRes.json().catch(() => null)) as { message?: string } | null
+    throw new Error(errorData?.message || `Failed to update GitHub issue status (HTTP ${patchRes.status})`)
+  }
+
+  if (matchedStatus?.color) {
+    ensureGitHubLabelExists(
+      repoUrl,
+      newStatusLabel,
+      matchedStatus.color,
+      resolvedToken
+    ).catch(() => {})
+  }
 }
 
 export async function updateGitHubIssueState(
@@ -443,7 +748,7 @@ export async function updateGitHubIssueState(
 export async function fetchGitHubLabels(
   repoUrl: string,
   token?: string | null
-): Promise<string[]> {
+): Promise<TaskLabel[]> {
   const repoInfo = parseGitHubRepo(repoUrl)
   if (!repoInfo) {
     return []
@@ -461,11 +766,15 @@ export async function fetchGitHubLabels(
       return []
     }
 
-    const data = (await response.json()) as Array<{ name?: string }>
+    const data = (await response.json()) as Array<{ name?: string; color?: string }>
     if (Array.isArray(data)) {
       return data
-        .map((l) => (typeof l === 'string' ? l : l.name || ''))
-        .filter(Boolean)
+        .filter((l) => Boolean(l.name) && !isGitHubStatusLabel(l.name || ''))
+        .map((l) => {
+          const name = l.name || ''
+          const color = normalizeHexColor(l.color) || getDeterministicColor(name)
+          return { name, color }
+        })
     }
   } catch (err) {
     console.error('Failed to fetch GitHub labels:', err)
@@ -480,11 +789,13 @@ export async function updateGitHubIssue(
   updates: {
     title?: string
     body?: string
+    status?: string
     state?: 'open' | 'closed'
     labels?: string[]
     relationships?: TaskRelationship[]
   },
-  token?: string | null
+  token?: string | null,
+  statuses?: Status[]
 ): Promise<void> {
   const repoInfo = parseGitHubRepo(repoUrl)
   if (!repoInfo) {
@@ -499,18 +810,55 @@ export async function updateGitHubIssue(
   const { owner, repo } = repoInfo
   const url = `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`
 
+  let state = updates.state
+  let finalLabels = updates.labels ? [...updates.labels] : undefined
+
+  if (updates.status) {
+    const matchedStatus = statuses ? matchStatusByNameOrKey(updates.status, statuses) : null
+    const statusName = matchedStatus ? matchedStatus.name : updates.status
+    const isClosed = matchedStatus ? isClosedStatus(matchedStatus) : updates.status === 'closed'
+    state = isClosed ? 'closed' : 'open'
+
+    const newStatusLabel = formatGitHubStatusLabel(statusName)
+
+    if (finalLabels !== undefined) {
+      finalLabels = finalLabels.filter((l) => !isGitHubStatusLabel(l))
+      finalLabels.push(newStatusLabel)
+    } else {
+      try {
+        const getRes = await fetch(url, { headers: getGitHubHeaders(resolvedToken) })
+        if (getRes.ok) {
+          const current = (await getRes.json()) as GitHubIssueResponse
+          const existing = (current.labels || []).map((l) => (typeof l === 'string' ? l : l.name || '')).filter(Boolean)
+          finalLabels = existing.filter((l) => !isGitHubStatusLabel(l))
+          finalLabels.push(newStatusLabel)
+        }
+      } catch {}
+    }
+
+    if (matchedStatus?.color) {
+      ensureGitHubLabelExists(
+        repoUrl,
+        newStatusLabel,
+        matchedStatus.color,
+        resolvedToken
+      ).catch(() => {})
+    }
+  }
+
+  const patchBody: Record<string, unknown> = {}
+  if (updates.title !== undefined) patchBody.title = updates.title
+  if (updates.body !== undefined) patchBody.body = updates.body
+  if (state !== undefined) patchBody.state = state
+  if (finalLabels !== undefined) patchBody.labels = finalLabels
+
   const response = await fetch(url, {
     method: 'PATCH',
     headers: {
       ...getGitHubHeaders(resolvedToken),
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      title: updates.title,
-      body: updates.body,
-      state: updates.state,
-      labels: updates.labels
-    })
+    body: JSON.stringify(patchBody)
   })
 
   if (!response.ok) {
@@ -544,11 +892,13 @@ export async function createGitHubIssue(
   data: {
     title: string
     body?: string
+    status?: string
     labels?: string[]
   },
   projectId: string,
   userId: string,
-  token?: string | null
+  token?: string | null,
+  statuses?: Status[]
 ): Promise<Task> {
   const repoInfo = parseGitHubRepo(repoUrl)
   if (!repoInfo) {
@@ -563,13 +913,40 @@ export async function createGitHubIssue(
   const { owner, repo } = repoInfo
   const url = `https://api.github.com/repos/${owner}/${repo}/issues`
 
+  const payloadLabels = [...(data.labels || [])]
+  let isClosed = false
+
+  if (data.status) {
+    const matchedStatus = statuses ? matchStatusByNameOrKey(data.status, statuses) : null
+    const statusName = matchedStatus ? matchedStatus.name : data.status
+    isClosed = matchedStatus ? isClosedStatus(matchedStatus) : data.status === 'closed'
+    const newStatusLabel = formatGitHubStatusLabel(statusName)
+
+    if (!payloadLabels.includes(newStatusLabel)) {
+      payloadLabels.push(newStatusLabel)
+    }
+
+    if (matchedStatus?.color) {
+      ensureGitHubLabelExists(
+        repoUrl,
+        newStatusLabel,
+        matchedStatus.color,
+        resolvedToken
+      ).catch(() => {})
+    }
+  }
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       ...getGitHubHeaders(resolvedToken),
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(data)
+    body: JSON.stringify({
+      title: data.title,
+      body: data.body,
+      labels: payloadLabels
+    })
   })
 
   if (!response.ok) {
@@ -578,5 +955,11 @@ export async function createGitHubIssue(
   }
 
   const created = (await response.json()) as GitHubIssueResponse
-  return mapGitHubIssueToTask(created, projectId, userId)
+
+  if (isClosed) {
+    await updateGitHubIssueState(repoUrl, created.number, 'closed', resolvedToken).catch(() => {})
+    created.state = 'closed'
+  }
+
+  return mapGitHubIssueToTask(created, projectId, userId, { statuses })
 }

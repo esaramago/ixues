@@ -8,7 +8,9 @@ declare global {
 			pb: PocketBase
 			user: RecordModel | null
 		}
-		// interface PageData {}
+		interface PageData {
+			title?: string
+		}
 		// interface PageState {}
 		// interface Platform {}
 	}

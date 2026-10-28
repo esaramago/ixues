@@ -1,6 +1,6 @@
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
-import type { Task } from '@/types/task'
+import type { Task, TaskLabel } from '@/types/task'
 import {
   createJiraIssue,
   deleteJiraIssue,
@@ -77,7 +77,7 @@ export const jiraAdapter: ProviderAdapter = {
     project: Project,
     token?: string | null,
     userEmail?: string | null
-  ): Promise<string[]> {
+  ): Promise<TaskLabel[]> {
     if (!project.repo_url) return []
     return fetchJiraLabels(
       project.repo_url,

@@ -1,14 +1,14 @@
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
-import type { Task } from '@/types/task'
+import type { Task, TaskLabel } from '@/types/task'
 import {
   createGitHubIssue,
   fetchGitHubIssue,
   fetchGitHubIssues,
   fetchGitHubLabels,
-  getGitHubStatuses,
+  fetchGitHubStatuses,
   updateGitHubIssue,
-  updateGitHubIssueState
+  updateGitHubIssueStatus
 } from '@/lib/github'
 import type { CreateIssueInput, ProviderAdapter, UpdateIssueInput } from './types'
 
@@ -34,30 +34,38 @@ async function resolveGitHubIssueNumber(
 export const githubAdapter: ProviderAdapter = {
   name: 'github',
 
-  getStatuses(project: Project, userId: string): Status[] {
-    return getGitHubStatuses(project.id, userId)
+  async getStatuses(
+    project: Project,
+    userId: string,
+    token?: string | null
+  ): Promise<Status[]> {
+    return fetchGitHubStatuses(project.repo_url, project.id, userId, token)
   },
 
   async getIssues(
     project: Project,
     userId: string,
-    token?: string | null
+    token?: string | null,
+    _userEmail?: string | null,
+    statuses?: Status[]
   ): Promise<Task[]> {
     if (!project.repo_url) return []
-    return fetchGitHubIssues(project.repo_url, project.id, userId, token)
+    return fetchGitHubIssues(project.repo_url, project.id, userId, token, statuses)
   },
 
   async getIssue(
     project: Project,
     issueIdOrSlug: string,
     userId: string,
-    token?: string | null
+    token?: string | null,
+    _userEmail?: string | null,
+    statuses?: Status[]
   ): Promise<Task | null> {
     if (!project.repo_url) return null
-    return fetchGitHubIssue(project.repo_url, issueIdOrSlug, project.id, userId, token)
+    return fetchGitHubIssue(project.repo_url, issueIdOrSlug, project.id, userId, token, statuses)
   },
 
-  async getLabels(project: Project, token?: string | null): Promise<string[]> {
+  async getLabels(project: Project, token?: string | null): Promise<TaskLabel[]> {
     if (!project.repo_url) return []
     return fetchGitHubLabels(project.repo_url, token)
   },
@@ -66,7 +74,9 @@ export const githubAdapter: ProviderAdapter = {
     project: Project,
     data: CreateIssueInput,
     userId: string,
-    token?: string | null
+    token?: string | null,
+    _userEmail?: string | null,
+    statuses?: Status[]
   ): Promise<Task> {
     if (!project.repo_url) {
       throw new Error('Project repository URL is missing.')
@@ -76,11 +86,13 @@ export const githubAdapter: ProviderAdapter = {
       {
         title: data.title,
         body: data.body,
+        status: data.status,
         labels: data.labels
       },
       project.id,
       userId,
-      token
+      token,
+      statuses
     )
   },
 
@@ -88,7 +100,9 @@ export const githubAdapter: ProviderAdapter = {
     project: Project,
     issueIdOrSlug: string,
     updates: UpdateIssueInput,
-    token?: string | null
+    token?: string | null,
+    _userEmail?: string | null,
+    statuses?: Status[]
   ): Promise<void> {
     if (!project.repo_url) {
       throw new Error('Project repository URL is missing.')
@@ -101,13 +115,6 @@ export const githubAdapter: ProviderAdapter = {
       project.user,
       token
     )
-
-    let state: 'open' | 'closed' | undefined
-    if (updates.status === 'closed') {
-      state = 'closed'
-    } else if (updates.status === 'open') {
-      state = 'open'
-    }
 
     await updateGitHubIssue(
       project.repo_url,
@@ -115,11 +122,12 @@ export const githubAdapter: ProviderAdapter = {
       {
         title: updates.title,
         body: updates.body,
-        state,
+        status: updates.status,
         labels: updates.labels,
         relationships: updates.relationships
       },
-      token
+      token,
+      statuses
     )
   },
 
@@ -127,13 +135,12 @@ export const githubAdapter: ProviderAdapter = {
     project: Project,
     issueIdOrSlug: string,
     statusId: string,
-    token?: string | null
+    token?: string | null,
+    _userEmail?: string | null,
+    statuses?: Status[]
   ): Promise<void> {
     if (!project.repo_url) {
       throw new Error('Project repository URL is missing.')
-    }
-    if (statusId !== 'open' && statusId !== 'closed') {
-      throw new Error('Invalid status for GitHub issue. Expected "open" or "closed".')
     }
 
     const issueNumber = await resolveGitHubIssueNumber(
@@ -144,7 +151,13 @@ export const githubAdapter: ProviderAdapter = {
       token
     )
 
-    await updateGitHubIssueState(project.repo_url, issueNumber, statusId, token)
+    await updateGitHubIssueStatus(
+      project.repo_url,
+      issueNumber,
+      statusId,
+      token,
+      statuses
+    )
   },
 
   async deleteIssue(): Promise<void> {

@@ -18,6 +18,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     }
 
     return {
+      title: `Edit ${project.name} · Ixues`,
       project: sanitizeProject(project)
     }
   } catch (err: unknown) {

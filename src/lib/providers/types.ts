@@ -1,10 +1,11 @@
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
-import type { Task, TaskPriority, TaskRelationship } from '@/types/task'
+import type { Task, TaskLabel, TaskPriority, TaskRelationship } from '@/types/task'
 
 export interface CreateIssueInput {
   title: string
   body?: string
+  status?: string
   labels?: string[]
   priority?: TaskPriority | null
 }
@@ -32,7 +33,8 @@ export interface ProviderAdapter {
     project: Project,
     userId: string,
     token?: string | null,
-    userEmail?: string | null
+    userEmail?: string | null,
+    statuses?: Status[]
   ): Promise<Task[]>
 
   getIssue(
@@ -40,21 +42,23 @@ export interface ProviderAdapter {
     issueIdOrSlug: string,
     userId: string,
     token?: string | null,
-    userEmail?: string | null
+    userEmail?: string | null,
+    statuses?: Status[]
   ): Promise<Task | null>
 
   getLabels(
     project: Project,
     token?: string | null,
     userEmail?: string | null
-  ): Promise<string[]>
+  ): Promise<TaskLabel[]>
 
   createIssue(
     project: Project,
     data: CreateIssueInput,
     userId: string,
     token?: string | null,
-    userEmail?: string | null
+    userEmail?: string | null,
+    statuses?: Status[]
   ): Promise<Task>
 
   updateIssue(
@@ -62,7 +66,8 @@ export interface ProviderAdapter {
     issueIdOrSlug: string,
     updates: UpdateIssueInput,
     token?: string | null,
-    userEmail?: string | null
+    userEmail?: string | null,
+    statuses?: Status[]
   ): Promise<void>
 
   updateIssueStatus(
@@ -70,7 +75,8 @@ export interface ProviderAdapter {
     issueIdOrSlug: string,
     statusId: string,
     token?: string | null,
-    userEmail?: string | null
+    userEmail?: string | null,
+    statuses?: Status[]
   ): Promise<void>
 
   deleteIssue(
