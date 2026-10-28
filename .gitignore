@@ -5,6 +5,7 @@ build
 .env.*
 !.env.example
 pb_data
+docker-compose.override.yml
 
 # OS & Editor
 .DS_Store
