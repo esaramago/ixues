@@ -1,21 +1,61 @@
 import crypto from 'node:crypto'
+import { building } from '$app/environment'
 import type { Project } from '@/types/project'
 
-const ENCRYPTION_SECRET =
-  process.env.TOKEN_ENCRYPTION_KEY ||
-  process.env.ENCRYPTION_KEY ||
-  process.env.POCKETBASE_SECRET ||
-  'ixues-default-token-encryption-secret-key-32'
-
-// Derive a fixed 32-byte key using sha256
-const KEY = crypto.createHash('sha256').update(ENCRYPTION_SECRET).digest()
+const DEFAULT_INSECURE_SECRET = 'ixues-default-token-encryption-secret-key-32'
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 12
 
+let cachedKey: Buffer | null = null
+
+function getEncryptionKey(): Buffer {
+  if (cachedKey) return cachedKey
+
+  const secret =
+    process.env.TOKEN_ENCRYPTION_KEY ||
+    process.env.ENCRYPTION_KEY ||
+    process.env.POCKETBASE_SECRET
+
+  if (!building && process.env.NODE_ENV === 'production') {
+    if (!secret || secret.trim() === '' || secret === DEFAULT_INSECURE_SECRET) {
+      throw new Error(
+        'TOKEN_ENCRYPTION_KEY environment variable is required in production and cannot use the default fallback key.'
+      )
+    }
+    cachedKey = crypto.createHash('sha256').update(secret).digest()
+    return cachedKey
+  }
+
+  const effectiveSecret = secret || DEFAULT_INSECURE_SECRET
+  cachedKey = crypto.createHash('sha256').update(effectiveSecret).digest()
+  return cachedKey
+}
+
+export function assertEncryptionConfig(): void {
+  if (building) return
+
+  const secret =
+    process.env.TOKEN_ENCRYPTION_KEY ||
+    process.env.ENCRYPTION_KEY ||
+    process.env.POCKETBASE_SECRET
+
+  if (process.env.NODE_ENV === 'production') {
+    if (!secret || secret.trim() === '' || secret === DEFAULT_INSECURE_SECRET) {
+      throw new Error(
+        'TOKEN_ENCRYPTION_KEY environment variable is required in production and cannot use the default fallback key.'
+      )
+    }
+  }
+}
+
+// Validate on startup
+assertEncryptionConfig()
+
 export function encryptToken(token: string): string {
   if (!token) return ''
+  const key = getEncryptionKey()
   const iv = crypto.randomBytes(IV_LENGTH)
-  const cipher = crypto.createCipheriv(ALGORITHM, KEY, iv)
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
   const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()])
   const tag = cipher.getAuthTag()
   return `enc:v1:${iv.toString('hex')}:${tag.toString('hex')}:${encrypted.toString('hex')}`
@@ -36,7 +76,8 @@ export function decryptToken(value: string | null | undefined): string {
     const tag = Buffer.from(tagHex, 'hex')
     const encrypted = Buffer.from(encryptedHex, 'hex')
 
-    const decipher = crypto.createDecipheriv(ALGORITHM, KEY, iv)
+    const key = getEncryptionKey()
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
     decipher.setAuthTag(tag)
     const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()])
     return decrypted.toString('utf8')

@@ -1,7 +1,12 @@
 import PocketBase from 'pocketbase'
-import type { Handle } from '@sveltejs/kit'
+import type { Handle, ServerInit } from '@sveltejs/kit'
+import { assertEncryptionConfig } from '@/lib/server/crypto'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || process.env.VITE_POCKETBASE_URL || 'http://127.0.0.1:8090'
+
+export const init: ServerInit = () => {
+	assertEncryptionConfig()
+}
 
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.pb = new PocketBase(POCKETBASE_URL)
