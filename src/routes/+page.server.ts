@@ -1,4 +1,3 @@
-import { redirect } from '@sveltejs/kit'
 import type { PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import { fetchProviderProjectDescription } from '@/lib/providers'
@@ -6,7 +5,9 @@ import { decryptToken, sanitizeProjects } from '@/lib/server/crypto'
 
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.user) {
-    throw redirect(303, '/login')
+    return {
+      projects: []
+    }
   }
 
   try {

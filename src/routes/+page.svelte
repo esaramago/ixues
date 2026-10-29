@@ -1,32 +1,107 @@
 <script lang="ts">
+  import { navigating } from '$app/state'
   import Grid from '@/components/Grid.svelte'
   import type { PageData } from './$types'
 
   let { data }: { data: PageData } = $props()
 </script>
 
-<Grid direction="column">
-  <Grid align="center" gap="s">
-    <wa-badge variant="brand">Ixues</wa-badge>
-    <wa-badge variant="neutral">v0.0.1</wa-badge>
+{#if data.user}
+  <Grid align="center" justify="space-between">
+    <h2>Projects</h2>
+    <wa-button href="/projects/new" variant="brand">
+      <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
+      Criar projeto
+    </wa-button>
   </Grid>
 
-  <h1>Ixues</h1>
-  <p>
-    An issue and task tracking web application built with SvelteKit, PocketBase, and WebAwesome.
-  </p>
+  {#if data.projects.length === 0}
+    <wa-card>
+      <Grid direction="column" align="center" gap="s">
+        <p>No projects found.</p>
+        <wa-button href="/projects/new" variant="brand">
+          <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
+          Criar projeto
+        </wa-button>
+      </Grid>
+    </wa-card>
+  {:else}
+    <Grid wrap={true} break="small">
+      {#each data.projects as project (project.id)}
+        {@const projectHref = `/projects/${project.slug || project.id}`}
+        {@const isOpening = Boolean(
+          navigating.to &&
+          (navigating.to.url.pathname === projectHref ||
+           navigating.to.url.pathname === `/projects/${project.id}` ||
+           (project.slug && navigating.to.url.pathname === `/projects/${project.slug}`))
+        )}
+        <a href={projectHref}>
+          <wa-card>
+            <Grid direction="column" gap="s">
+              <Grid align="center" justify="space-between">
+                <strong>{project.name}</strong>
+                <Grid align="center" gap="xs">
+                  {#if isOpening}
+                    <wa-spinner></wa-spinner>
+                  {/if}
+                  {#if project.type === 'sync'}
+                    <wa-badge variant="neutral">
+                      <wa-icon slot="start" family="brands" name={project.provider}></wa-icon>
+                      {project.provider ?? 'Sync'}
+                    </wa-badge>
+                  {:else}
+                    <wa-badge variant="brand">Local</wa-badge>
+                  {/if}
+                  {#if project.privacy === 'public'}
+                    <wa-badge variant="neutral">Shared</wa-badge>
+                  {/if}
+                </Grid>
+              </Grid>
+              {#if project.description}
+                <p class="project__description">{project.description}</p>
+              {/if}
+            </Grid>
+          </wa-card>
+        </a>
+      {/each}
+    </Grid>
+  {/if}
+{:else}
+  <Grid direction="column">
+    <Grid align="center" gap="s">
+      <wa-badge variant="brand">Ixues</wa-badge>
+      <wa-badge variant="neutral">v0.0.1</wa-badge>
+    </Grid>
 
-  <Grid wrap={true}>
-    {#if data.user}
-      <wa-button variant="brand" href="/dashboard">
-        <wa-icon slot="start" name="gauge" variant="solid"></wa-icon>
-        Dashboard
-      </wa-button>
-    {:else}
+    <h1>Ixues</h1>
+    <p>
+      An issue and task tracking web application built with SvelteKit, PocketBase, and WebAwesome.
+    </p>
+
+    <Grid wrap={true}>
       <wa-button variant="brand" href="/login">
         <wa-icon slot="start" name="right-to-bracket" variant="solid"></wa-icon>
         Get Started
       </wa-button>
-    {/if}
+    </Grid>
   </Grid>
-</Grid>
+{/if}
+
+<style>
+a {
+  text-decoration: none;
+  &:hover {
+    > wa-card {
+      background-color: var(--wa-color-brand-05);
+    }
+  }
+}
+wa-card {
+  width: 30rem;
+  transition: background-color .2s ease;
+}
+.project__description {
+  font-size: var(--wa-font-size-s);
+  color: var(--wa-color-neutral-80);
+}
+</style>

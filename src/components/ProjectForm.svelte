@@ -54,7 +54,7 @@
   )
   let resolvedAction = $derived(action ?? (isEdit ? '?/update' : undefined))
   let resolvedCancelHref = $derived(
-    cancelHref ?? (isEdit && project?.id ? `/projects/${project.slug || project.id}` : '/dashboard')
+    cancelHref ?? (isEdit && project?.id ? `/projects/${project.slug || project.id}` : '/')
   )
   let resolvedSubmitLabel = $derived(
     submitLabel ?? (isEdit ? 'Save Changes' : 'Create Project')

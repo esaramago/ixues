@@ -41,7 +41,7 @@
   let tasks = $state<TaskType[]>([])
   let onlyMyTasks = $state(false)
 
-  let resolvedBackHref = $derived(backHref ?? (user ? '/dashboard' : '/'))
+  let resolvedBackHref = $derived(backHref ?? '/')
   let resolveTaskHref = $derived(
     taskHrefFn ?? ((t: TaskType) => `/projects/${project.slug || project.id}/tasks/${t.number ?? t.id}`)
   )
