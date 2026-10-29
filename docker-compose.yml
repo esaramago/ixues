@@ -15,13 +15,14 @@ services:
       - pocketbase
 
   pocketbase:
-    image: ghcr.io/muchobien/pocketbase:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.pocketbase
     restart: unless-stopped
     expose:
       - "8090"
     volumes:
       - pb_data:/pb_data
-      - ./pb_migrations:/pb_migrations
 
 volumes:
   pb_data:
