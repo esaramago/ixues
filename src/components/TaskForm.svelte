@@ -96,6 +96,7 @@
   let status = $state('')
   let assigned = $state('')
   let selectedLabels = $state<string[]>([])
+  let labelsSelectEl = $state<HTMLElement | null>(null)
   let selectedRelationships = $state<TaskRelationship[]>([])
   let newRelType = $state<RelationshipType>('relates_to')
   let newRelTaskId = $state('')
@@ -170,6 +171,8 @@
     } else {
       selectedLabels = []
     }
+    const select = labelsSelectEl as (HTMLElement & { hide?: () => Promise<void> }) | null
+    select?.hide?.()
   }
 
   function handleAddRelationship() {
@@ -312,6 +315,7 @@
           </Grid>
 
           <wa-select
+            bind:this={labelsSelectEl}
             name="labels"
             label="Labels"
             multiple
