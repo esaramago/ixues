@@ -167,6 +167,7 @@ export interface Task {
   id: string
   created?: string
   updated?: string
+  order?: number
   number?: number
   title: string
   slug?: string

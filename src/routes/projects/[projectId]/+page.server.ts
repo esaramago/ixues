@@ -207,7 +207,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       try {
         const taskRecords = await locals.pb.collection('tasks').getFullList({
           filter: `project = "${project.id}"`,
-          sort: 'number',
+          sort: 'order,number',
           expand: 'assigned'
         })
         tasks = structuredClone(taskRecords) as unknown as Task[]
@@ -654,6 +654,8 @@ export const actions: Actions = {
     const data = await request.formData()
     const taskId = (data.get('taskId') as string)?.trim()
     const statusId = (data.get('statusId') as string)?.trim() || null
+    const targetIndexStr = data.get('targetIndex') as string | null
+    const targetIndex = targetIndexStr !== null && targetIndexStr !== '' ? parseInt(targetIndexStr, 10) : null
 
     if (!taskId) {
       return fail(400, { error: 'Task ID is required.' })
@@ -717,9 +719,49 @@ export const actions: Actions = {
         }
       }
 
-      await locals.pb.collection('tasks').update(taskId, {
-        status: statusId
+      const filter = statusId
+        ? `project = "${project.id}" && status = "${statusId}"`
+        : `project = "${project.id}" && status = null`
+
+      const siblingTasks = await locals.pb.collection('tasks').getFullList({
+        filter,
+        sort: 'order,number'
       })
+
+      // Exclude the task being moved if it was already in this status
+      const remainingTasks = siblingTasks.filter((t) => t.id !== taskId)
+
+      let insertAt = remainingTasks.length
+      if (targetIndex !== null && !isNaN(targetIndex)) {
+        insertAt = Math.max(0, Math.min(targetIndex, remainingTasks.length))
+      }
+
+      remainingTasks.splice(insertAt, 0, task)
+
+      // Update the moved task and any siblings whose order needs updating
+      const updates: Promise<unknown>[] = []
+      for (let i = 0; i < remainingTasks.length; i++) {
+        const item = remainingTasks[i]
+        const newStatus = statusId
+        const newOrder = i
+
+        if (item.id === taskId) {
+          updates.push(
+            locals.pb.collection('tasks').update(taskId, {
+              status: newStatus,
+              order: newOrder
+            })
+          )
+        } else if (item.order !== newOrder) {
+          updates.push(
+            locals.pb.collection('tasks').update(item.id, {
+              order: newOrder
+            })
+          )
+        }
+      }
+
+      await Promise.all(updates)
 
       return {
         success: true

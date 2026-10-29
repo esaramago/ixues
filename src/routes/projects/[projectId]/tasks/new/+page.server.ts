@@ -286,8 +286,30 @@ export const actions: Actions = {
 
     try {
       const slug = await generateTaskSlug(locals.pb, project.id, title)
+
+      let nextOrder = 0
+      try {
+        const filter = status
+          ? `project = "${project.id}" && status = "${status}"`
+          : `project = "${project.id}" && status = null`
+        const highestOrderTask = await locals.pb
+          .collection('tasks')
+          .getFirstListItem(filter, {
+            sort: '-order'
+          })
+        if (
+          highestOrderTask &&
+          typeof highestOrderTask.order === 'number'
+        ) {
+          nextOrder = highestOrderTask.order + 1
+        }
+      } catch {
+        nextOrder = 0
+      }
+
       await locals.pb.collection('tasks').create({
         number: nextNumber,
+        order: nextOrder,
         title,
         slug,
         description: description || null,

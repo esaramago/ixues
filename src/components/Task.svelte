@@ -27,9 +27,7 @@
   }
 
   function handleDragEnd(event: DragEvent) {
-    setTimeout(() => {
-      isDragging = false
-    }, 100)
+    isDragging = false
     ondragend?.(event)
   }
 
@@ -42,6 +40,7 @@
 
 <a
   class="task"
+  class:task--dragging={isDragging}
   href={taskHref}
   draggable={draggable ? 'true' : 'false'}
   ondragstart={draggable ? handleDragStart : undefined}
@@ -109,6 +108,9 @@
       background-color: var(--wa-color-brand-05);
     }
   }
+}
+.task--dragging {
+  opacity: 0.4;
 }
 wa-card {
   --spacing: var(--wa-space-s);

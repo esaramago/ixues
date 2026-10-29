@@ -86,6 +86,13 @@
     displayedTasks.filter((task) => !task.status || !statuses.some((s) => s.id === task.status))
   )
 
+  let draggedTaskId = $state<string | null>(null)
+  let dropTarget = $state<{
+    statusId: string | null
+    taskId: string
+    position: 'top' | 'bottom'
+  } | null>(null)
+
   function handleDragOver(event: DragEvent) {
     if (isReadOnly) return
     event.preventDefault()
@@ -94,25 +101,88 @@
     }
   }
 
-  async function handleDrop(event: DragEvent, targetStatusId: string | null) {
+  function handleTaskDragOver(
+    event: DragEvent,
+    statusId: string | null,
+    targetTask: TaskType
+  ) {
     if (isReadOnly) return
     event.preventDefault()
-    const taskId = event.dataTransfer?.getData('text/plain')
+    event.stopPropagation()
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move'
+    }
+
+    if (draggedTaskId === targetTask.id) {
+      dropTarget = null
+      return
+    }
+
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    const midY = rect.top + rect.height / 2
+    const position = event.clientY < midY ? 'top' : 'bottom'
+
+    dropTarget = {
+      statusId,
+      taskId: targetTask.id,
+      position
+    }
+  }
+
+  function clearDropTarget() {
+    dropTarget = null
+  }
+
+  async function handleDrop(
+    event: DragEvent,
+    targetStatusId: string | null,
+    targetIndex?: number
+  ) {
+    if (isReadOnly) return
+    event.preventDefault()
+    event.stopPropagation()
+    clearDropTarget()
+    const taskId = event.dataTransfer?.getData('text/plain') || draggedTaskId
     if (!taskId) return
 
     const targetTask = tasks.find((t) => t.id === taskId)
     if (!targetTask) return
 
-    const currentStatusId = targetTask.status || null
-    if (currentStatusId === targetStatusId) return
-
     const previousTasks = [...tasks]
+
+    // Determine tasks in current target column (excluding dragged task)
+    const currentColumnTasks = tasks.filter(
+      (t) => (targetStatusId ? t.status === targetStatusId : !t.status || !statuses.some((s) => s.id === t.status)) && t.id !== taskId
+    )
+
+    let finalIndex = currentColumnTasks.length
+    if (typeof targetIndex === 'number') {
+      finalIndex = Math.max(0, Math.min(targetIndex, currentColumnTasks.length))
+    }
+
+    // Check if position actually changed
+    const currentStatusId = targetTask.status || null
+    const existingIndexInSameStatus = tasks
+      .filter((t) => (currentStatusId ? t.status === currentStatusId : !t.status || !statuses.some((s) => s.id === t.status)))
+      .findIndex((t) => t.id === taskId)
+
+    if (currentStatusId === targetStatusId && existingIndexInSameStatus === finalIndex) {
+      draggedTaskId = null
+      return
+    }
+
     // Optimistic UI update
-    tasks = tasks.map((t) => (t.id === taskId ? { ...t, status: targetStatusId || null } : t))
+    const updatedTask = { ...targetTask, status: targetStatusId || null }
+    currentColumnTasks.splice(finalIndex, 0, updatedTask)
+    const otherTasks = tasks.filter(
+      (t) => (targetStatusId ? t.status !== targetStatusId : Boolean(t.status) && statuses.some((s) => s.id === t.status)) && t.id !== taskId
+    )
+    tasks = [...otherTasks, ...currentColumnTasks]
 
     const formData = new FormData()
     formData.append('taskId', taskId)
     formData.append('statusId', targetStatusId || '')
+    formData.append('targetIndex', String(finalIndex))
 
     try {
       const response = await fetch('?/moveTask', {
@@ -128,6 +198,8 @@
       await invalidateAll()
     } catch {
       tasks = previousTasks
+    } finally {
+      draggedTaskId = null
     }
   }
 
@@ -358,12 +430,38 @@
                 {#if statusTasks.length === 0}
                   <div class="empty-state">No tasks</div>
                 {:else}
-                  {#each statusTasks as task (task.id)}
-                    <Task
-                      {task}
-                      href={resolveTaskHref(task)}
-                      draggable={!isReadOnly}
-                    />
+                  {#each statusTasks as task, taskIndex (task.id)}
+                    <div
+                      class="task-dropzone"
+                      class:drop-top={dropTarget?.statusId === status.id &&
+                        dropTarget?.taskId === task.id &&
+                        dropTarget?.position === 'top'}
+                      class:drop-bottom={dropTarget?.statusId === status.id &&
+                        dropTarget?.taskId === task.id &&
+                        dropTarget?.position === 'bottom'}
+                      ondragover={isReadOnly
+                        ? undefined
+                        : (e) => handleTaskDragOver(e, status.id, task)}
+                      ondrop={isReadOnly
+                        ? undefined
+                        : (e) => {
+                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                            const midY = rect.top + rect.height / 2
+                            const targetIdx = e.clientY < midY ? taskIndex : taskIndex + 1
+                            handleDrop(e, status.id, targetIdx)
+                          }}
+                    >
+                      <Task
+                        {task}
+                        href={resolveTaskHref(task)}
+                        draggable={!isReadOnly}
+                        ondragstart={() => (draggedTaskId = task.id)}
+                        ondragend={() => {
+                          draggedTaskId = null
+                          clearDropTarget()
+                        }}
+                      />
+                    </div>
                   {/each}
                 {/if}
               </Grid>
@@ -396,12 +494,38 @@
               </Grid>
 
               <Grid direction="column" gap="s">
-                {#each unassignedTasks as task (task.id)}
-                  <Task
-                    {task}
-                    href={resolveTaskHref(task)}
-                    draggable={!isReadOnly}
-                  />
+                {#each unassignedTasks as task, taskIndex (task.id)}
+                  <div
+                    class="task-dropzone"
+                    class:drop-top={dropTarget?.statusId === null &&
+                      dropTarget?.taskId === task.id &&
+                      dropTarget?.position === 'top'}
+                    class:drop-bottom={dropTarget?.statusId === null &&
+                      dropTarget?.taskId === task.id &&
+                      dropTarget?.position === 'bottom'}
+                    ondragover={isReadOnly
+                      ? undefined
+                      : (e) => handleTaskDragOver(e, null, task)}
+                    ondrop={isReadOnly
+                      ? undefined
+                      : (e) => {
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                          const midY = rect.top + rect.height / 2
+                          const targetIdx = e.clientY < midY ? taskIndex : taskIndex + 1
+                          handleDrop(e, null, targetIdx)
+                        }}
+                  >
+                    <Task
+                      {task}
+                      href={resolveTaskHref(task)}
+                      draggable={!isReadOnly}
+                      ondragstart={() => (draggedTaskId = task.id)}
+                      ondragend={() => {
+                        draggedTaskId = null
+                        clearDropTarget()
+                      }}
+                    />
+                  </div>
                 {/each}
               </Grid>
             </Grid>
@@ -493,5 +617,29 @@
   font-size: var(--wa-font-size-s);
   color: var(--wa-color-neutral-70);
   padding: var(--wa-space-l) var(--wa-space-xs);
+}
+.task-dropzone {
+  position: relative;
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background-color: var(--wa-color-brand-50);
+    border-radius: var(--wa-border-radius-pill, 9999px);
+    display: none;
+    pointer-events: none;
+    z-index: 10;
+  }
+  &.drop-top::before {
+    display: block;
+    top: calc(var(--wa-space-s) * -0.5);
+  }
+  &.drop-bottom::after {
+    display: block;
+    bottom: calc(var(--wa-space-s) * -0.5);
+  }
 }
 </style>
