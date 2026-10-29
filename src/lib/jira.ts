@@ -735,36 +735,126 @@ export async function fetchJiraBranches(
   const headers = getJiraHeaders(token, userEmail)
   const apiBase = await resolveJiraApiBaseUrl(hostUrl)
 
-  try {
-    const devUrl = `${apiBase}/rest/dev-status/1.0/issue/detail?issueId=${encodeURIComponent(issueIdOrKey)}&applicationType=github&dataType=branch`
-    const res = await fetch(devUrl, { headers })
-    if (res.ok) {
-      const data = (await res.json()) as {
-        detail?: Array<{
-          branches?: Array<{
-            name: string
-            url?: string
-          }>
-        }>
-      }
-
-      const branches: TaskBranch[] = []
-      if (Array.isArray(data.detail)) {
-        for (const d of data.detail) {
-          for (const b of d.branches || []) {
+  const parseBranchesFromDetail = (detail: unknown): TaskBranch[] => {
+    const branches: TaskBranch[] = []
+    if (Array.isArray(detail)) {
+      for (const d of detail) {
+        // Direct branches array on item
+        for (const b of (d as { branches?: Array<{ name: string; url?: string }> }).branches || []) {
+          if (b.name) {
+            branches.push({ name: b.name, url: b.url })
+          }
+        }
+        // Nested repositories array with branches
+        for (const repo of (d as { repositories?: Array<{ branches?: Array<{ name: string; url?: string }> }> }).repositories || []) {
+          for (const b of repo.branches || []) {
             if (b.name) {
               branches.push({ name: b.name, url: b.url })
             }
           }
         }
       }
-      return branches
     }
-  } catch {
-    // Dev-status is optional
+    return branches
   }
 
-  return []
+  const applicationTypesToTry = new Set<string>()
+
+  // 1. First attempt to query dev-status summary to discover registered providers / instance types
+  try {
+    for (const summaryEndpoint of [
+      `${apiBase}/rest/dev-status/latest/issue/summary?issueId=${encodeURIComponent(issueIdOrKey)}`,
+      `${apiBase}/rest/dev-status/1.0/issue/summary?issueId=${encodeURIComponent(issueIdOrKey)}`
+    ]) {
+      const summaryRes = await fetch(summaryEndpoint, { headers })
+      if (summaryRes.ok) {
+        const summaryData = (await summaryRes.json()) as {
+          summary?: {
+            branch?: {
+              byInstanceType?: Record<string, unknown>
+            }
+            repository?: {
+              byInstanceType?: Record<string, unknown>
+            }
+            pullrequest?: {
+              byInstanceType?: Record<string, unknown>
+            }
+          }
+        }
+
+        const summary = summaryData.summary
+        if (summary) {
+          for (const section of [summary.branch, summary.repository, summary.pullrequest]) {
+            if (section?.byInstanceType) {
+              for (const key of Object.keys(section.byInstanceType)) {
+                if (key) applicationTypesToTry.add(key)
+              }
+            }
+          }
+        }
+        break
+      }
+    }
+  } catch {
+    // dev-status summary is optional
+  }
+
+  // Common application types as fallback candidates
+  for (const appType of [
+    'GitHub',
+    'github',
+    'githube',
+    'oAuth-com.github.integration.production',
+    'bitbucket',
+    'stash',
+    'gitlab',
+    'GitLab'
+  ]) {
+    applicationTypesToTry.add(appType)
+  }
+
+  // 2. Query dev-status detail for each candidate application type and data type
+  const branches: TaskBranch[] = []
+  const seenBranchKeys = new Set<string>()
+
+  const addBranch = (b: TaskBranch) => {
+    const key = `${b.name}::${b.url || ''}`
+    if (!seenBranchKeys.has(key)) {
+      seenBranchKeys.add(key)
+      branches.push(b)
+    }
+  }
+
+  for (const appType of applicationTypesToTry) {
+    for (const dataType of ['branch', 'repository']) {
+      try {
+        const devUrls = [
+          `${apiBase}/rest/dev-status/latest/issue/detail?issueId=${encodeURIComponent(issueIdOrKey)}&applicationType=${encodeURIComponent(appType)}&dataType=${dataType}`,
+          `${apiBase}/rest/dev-status/1.0/issue/detail?issueId=${encodeURIComponent(issueIdOrKey)}&applicationType=${encodeURIComponent(appType)}&dataType=${dataType}`
+        ]
+
+        for (const devUrl of devUrls) {
+          const res = await fetch(devUrl, { headers })
+          if (res.ok) {
+            const data = (await res.json()) as { detail?: unknown }
+            const parsedBranches = parseBranchesFromDetail(data.detail)
+            for (const b of parsedBranches) {
+              addBranch(b)
+            }
+            break
+          }
+        }
+      } catch {
+        // Dev-status is optional
+      }
+    }
+
+    if (branches.length > 0) {
+      return branches
+    }
+  }
+
+  return branches
 }
 
 export async function fetchJiraIssue(
