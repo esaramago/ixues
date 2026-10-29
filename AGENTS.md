@@ -48,3 +48,4 @@ Esta app faz a sincronização de outras ferramentas com issue tracking (Jira, G
 
 ## Notes
 - This project is hosted on Coolify.
+- Issues tracking in https://ixues.emanuelsaramago.com/share/5a5c85bd7055968ee0db82bc56a90809
