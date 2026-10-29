@@ -12,5 +12,6 @@ export interface Project {
 	has_token?: boolean
 	only_my_tasks?: boolean
 	privacy?: 'private' | 'public'
+	share_token?: string | null
 	user: string
 }

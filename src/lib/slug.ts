@@ -85,6 +85,17 @@ export async function getProjectByIdOrSlug(
   }
 }
 
+export async function getProjectByShareToken(
+  pb: PocketBase,
+  shareToken: string,
+  options?: RecordOptions
+): Promise<RecordModel> {
+  return await pb.collection('projects').getFirstListItem(
+    `share_token = "${shareToken}" && privacy = "public"`,
+    options
+  )
+}
+
 export async function getTaskByIdOrSlug(
   pb: PocketBase,
   projectId: string,

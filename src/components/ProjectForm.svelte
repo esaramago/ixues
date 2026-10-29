@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from '$app/stores'
   import Back from '@/components/Back.svelte'
   import ConfirmDialog from '@/components/ConfirmDialog.svelte'
   import Grid from '@/components/Grid.svelte'
@@ -57,6 +58,9 @@
   )
   let resolvedSubmitLabel = $derived(
     submitLabel ?? (isEdit ? 'Save Changes' : 'Create Project')
+  )
+  let shareUrl = $derived(
+    project?.share_token ? `${$page.url.origin}/share/${project.share_token}` : ''
   )
 
   let projectName = $state('')
@@ -168,9 +172,29 @@
             value={projectPrivacy}
             onchange={handlePrivacyChange}
           >
-            <wa-radio value="private" checked={projectPrivacy === 'private'}>Private</wa-radio>
-            <wa-radio value="public" checked={projectPrivacy === 'public'}>Public</wa-radio>
+            <wa-radio value="private" checked={projectPrivacy === 'private'}>Private (Only you)</wa-radio>
+            <wa-radio value="public" checked={projectPrivacy === 'public'}>Share Link (Anyone with secret URL)</wa-radio>
           </wa-radio-group>
+
+          {#if projectPrivacy === 'public'}
+            {#if isEdit && project?.share_token}
+              <wa-input
+                label="Share Link"
+                value={shareUrl}
+                readonly
+                hint="Anyone with this secret link has read-only access to this project."
+              >
+                <wa-icon slot="start" name="link" variant="solid"></wa-icon>
+                <wa-copy-button slot="end" value={shareUrl}></wa-copy-button>
+              </wa-input>
+
+              <wa-checkbox name="regenerateShareToken" value="true">
+                Regenerate share link (revokes the previous link)
+              </wa-checkbox>
+            {:else}
+              <small>A secret shareable link will be generated upon saving.</small>
+            {/if}
+          {/if}
 
           {#if projectType === 'sync'}
             <wa-select

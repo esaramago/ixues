@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { error, fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
@@ -56,6 +57,7 @@ export const actions: Actions = {
     const removeToken = data.get('removeToken') === 'true'
     const onlyMyTasks = data.get('onlyMyTasks') === 'true' || data.get('onlyMyTasks') === 'on'
     const privacy: 'private' | 'public' = (data.get('privacy') as string)?.trim() === 'public' ? 'public' : 'private'
+    const regenerateShareToken = data.get('regenerateShareToken') === 'true'
 
     if (!name) {
       return fail(400, {
@@ -146,6 +148,16 @@ export const actions: Actions = {
       if (!targetSlug) {
         targetSlug = await generateProjectSlug(locals.pb, name, project.id)
       }
+
+      let shareToken = project.share_token || null
+      if (privacy === 'public') {
+        if (regenerateShareToken || !shareToken) {
+          shareToken = crypto.randomBytes(16).toString('hex')
+        }
+      } else {
+        shareToken = null
+      }
+
       await locals.pb.collection('projects').update(project.id, {
         name,
         slug: targetSlug,
@@ -155,7 +167,8 @@ export const actions: Actions = {
         repo_url: type === 'sync' ? repoUrl : null,
         token: finalToken,
         only_my_tasks: onlyMyTasks,
-        privacy
+        privacy,
+        share_token: shareToken
       })
     } catch (err: unknown) {
       const pbError = err as { status?: number; data?: { message?: string }; message?: string }

@@ -23,28 +23,23 @@ import { parseTaskFormData } from '@/lib/server/task-form'
 import { generateTaskSlug, getProjectByIdOrSlug, getTaskByIdOrSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
+  if (!locals.user) {
+    throw redirect(303, '/login')
+  }
+
   let projectRecord
   try {
     projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId, { expand: 'user' })
   } catch {
-    if (!locals.user) {
-      throw redirect(303, '/login')
-    }
     throw error(404, 'Project not found')
   }
 
   const project = structuredClone(projectRecord) as unknown as Project
-  const isOwner = Boolean(locals.user && locals.user.id === project.user)
-  const isPublic = project.privacy === 'public'
-
-  if (!isOwner && !isPublic) {
-    if (!locals.user) {
-      throw redirect(303, '/login')
-    }
+  if (project.user !== locals.user.id) {
     throw error(404, 'Project not found')
   }
 
-  const isReadOnly = !isOwner
+  const isReadOnly = false
 
   try {
     if (isSyncProject(project)) {
@@ -54,7 +49,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
       const decryptedToken = decryptToken(project.token)
       const ownerId = project.user
-      const ownerEmail = locals.user && isOwner ? locals.user.email : (projectRecord.expand?.user as { email?: string } | undefined)?.email
+      const ownerEmail = locals.user.email
 
       let statuses: Status[] = []
       try {

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
@@ -101,6 +102,8 @@ export const actions: Actions = {
 			}
 
 			const slug = await generateProjectSlug(locals.pb, name)
+			const shareToken = privacy === 'public' ? crypto.randomBytes(16).toString('hex') : null
+
 			await locals.pb.collection('projects').create({
 				name,
 				slug,
@@ -111,6 +114,7 @@ export const actions: Actions = {
 				token: type === 'sync' && token ? encryptToken(token) : null,
 				only_my_tasks: onlyMyTasks,
 				privacy,
+				share_token: shareToken,
 				user: locals.user.id
 			})
 		} catch (err: unknown) {

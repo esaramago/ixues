@@ -5,15 +5,17 @@
   interface Props {
     task: Task
     projectId?: string
+    href?: string
     draggable?: boolean
     ondragstart?: (event: DragEvent) => void
     ondragend?: (event: DragEvent) => void
   }
 
-  let { task, projectId, draggable = true, ondragstart, ondragend }: Props = $props()
+  let { task, projectId, href, draggable = true, ondragstart, ondragend }: Props = $props()
 
   let isDragging = $state(false)
   let projectIdentifier = $derived(projectId ?? task.project)
+  let taskHref = $derived(href ?? `/projects/${projectIdentifier}/tasks/${task.number ?? task.id}`)
 
   function handleDragStart(event: DragEvent) {
     if (event.dataTransfer) {
@@ -40,7 +42,7 @@
 
 <a
   class="task"
-  href={`/projects/${projectIdentifier}/tasks/${task.number ?? task.id}`}
+  href={taskHref}
   draggable={draggable ? 'true' : 'false'}
   ondragstart={draggable ? handleDragStart : undefined}
   ondragend={draggable ? handleDragEnd : undefined}

@@ -52,7 +52,7 @@
                   <wa-badge variant="brand">Local</wa-badge>
                 {/if}
                 {#if project.privacy === 'public'}
-                  <wa-badge variant="neutral">Public</wa-badge>
+                  <wa-badge variant="neutral">Shared</wa-badge>
                 {/if}
               </Grid>
             </Grid>

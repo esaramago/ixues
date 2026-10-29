@@ -62,10 +62,18 @@ Ixues is an issue and task tracking web application composed of:
 ### Collections
 
 PocketBase manages the following core collections:
-- `projects`: Contains local and sync project definitions, slugs, repo URLs, encrypted tokens, and `privacy` (`private` or `public`).
+- `projects`: Contains local and sync project definitions, slugs, repo URLs, encrypted tokens, `privacy` (`private` or `public`), and `share_token`.
 - `statuses`: Workflow columns per project (order, key, color, name).
 - `tasks`: Issues/tasks with title, description, priority (lowest to urgent), status, labels, relationships, and assigned user.
 - `users`: Authentication records managed by PocketBase auth.
+
+### Project Privacy & Secret Share Links
+
+- **Private Mode:** The project is strictly accessible to the owner. Clean URLs (`/projects/[slug]`) require authentication and project ownership; any unauthenticated visitor is redirected to `/login`, and unauthorized users receive a 404.
+- **Share Link Mode:** Public access is granted strictly through unguessable, randomized share URLs (`/share/[shareToken]`).
+  - Anyone with the link can view the Kanban board and task details in read-only mode.
+  - Clean URLs (`/projects/[slug]`) remain private and protected behind login.
+  - The project owner can regenerate the share token at any time in Edit Project to revoke access to old links.
 
 ### How Migrations Work
 
