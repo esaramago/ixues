@@ -10,7 +10,9 @@ export const load: PageServerLoad = async ({ locals }) => {
   }
 
   try {
-    const records = await locals.pb.collection('projects').getFullList()
+    const records = await locals.pb.collection('projects').getFullList({
+      filter: `user = "${locals.user.id}"`
+    })
     const projects = sanitizeProjects(structuredClone(records) as unknown as Project[])
 
     await Promise.allSettled(

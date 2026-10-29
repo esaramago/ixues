@@ -12,6 +12,7 @@
     repoUrl?: string
     token?: string
     onlyMyTasks?: boolean
+    privacy?: 'private' | 'public'
   }
 
   interface Props {
@@ -64,6 +65,7 @@
   let repoUrl = $state('')
   let token = $state('')
   let onlyMyTasks = $state(false)
+  let projectPrivacy = $state<'private' | 'public'>('private')
   let prevKey = $state('')
   let isConfirmOpen = $state(false)
 
@@ -77,6 +79,7 @@
       repoUrl = project?.repo_url || ''
       token = ''
       onlyMyTasks = Boolean(project?.only_my_tasks)
+      projectPrivacy = project?.privacy || 'private'
     }
     if (form?.name !== undefined) {
       projectName = form.name
@@ -95,6 +98,9 @@
     }
     if (form?.onlyMyTasks !== undefined) {
       onlyMyTasks = Boolean(form.onlyMyTasks)
+    }
+    if (form?.privacy !== undefined) {
+      projectPrivacy = form.privacy
     }
   })
 
@@ -116,6 +122,10 @@
 
   function handleTokenChange(event: Event) {
     token = (event.target as HTMLInputElement).value
+  }
+
+  function handlePrivacyChange(event: Event) {
+    projectPrivacy = (event.target as HTMLInputElement).value as 'private' | 'public'
   }
 </script>
 
@@ -150,6 +160,16 @@
           >
             <wa-radio value="local" checked={projectType === 'local'}>Local</wa-radio>
             <wa-radio value="sync" checked={projectType === 'sync'}>Synchronization</wa-radio>
+          </wa-radio-group>
+
+          <wa-radio-group
+            label="Privacy"
+            name="privacy"
+            value={projectPrivacy}
+            onchange={handlePrivacyChange}
+          >
+            <wa-radio value="private" checked={projectPrivacy === 'private'}>Private</wa-radio>
+            <wa-radio value="public" checked={projectPrivacy === 'public'}>Public</wa-radio>
           </wa-radio-group>
 
           {#if projectType === 'sync'}

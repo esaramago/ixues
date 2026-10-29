@@ -5,11 +5,12 @@
   interface Props {
     task: Task
     projectId?: string
+    draggable?: boolean
     ondragstart?: (event: DragEvent) => void
     ondragend?: (event: DragEvent) => void
   }
 
-  let { task, projectId, ondragstart, ondragend }: Props = $props()
+  let { task, projectId, draggable = true, ondragstart, ondragend }: Props = $props()
 
   let isDragging = $state(false)
   let projectIdentifier = $derived(projectId ?? task.project)
@@ -40,9 +41,9 @@
 <a
   class="task"
   href={`/projects/${projectIdentifier}/tasks/${task.number ?? task.id}`}
-  draggable="true"
-  ondragstart={handleDragStart}
-  ondragend={handleDragEnd}
+  draggable={draggable ? 'true' : 'false'}
+  ondragstart={draggable ? handleDragStart : undefined}
+  ondragend={draggable ? handleDragEnd : undefined}
   onclick={handleClick}
 >
   <wa-card>

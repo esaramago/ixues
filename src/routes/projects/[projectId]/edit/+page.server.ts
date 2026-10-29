@@ -55,6 +55,7 @@ export const actions: Actions = {
     const token = (data.get('token') as string)?.trim() || ''
     const removeToken = data.get('removeToken') === 'true'
     const onlyMyTasks = data.get('onlyMyTasks') === 'true' || data.get('onlyMyTasks') === 'on'
+    const privacy: 'private' | 'public' = (data.get('privacy') as string)?.trim() === 'public' ? 'public' : 'private'
 
     if (!name) {
       return fail(400, {
@@ -64,7 +65,8 @@ export const actions: Actions = {
         provider,
         repoUrl,
         token,
-        onlyMyTasks
+        onlyMyTasks,
+        privacy
       })
     }
 
@@ -77,7 +79,8 @@ export const actions: Actions = {
           provider,
           repoUrl,
           token,
-          onlyMyTasks
+          onlyMyTasks,
+          privacy
         })
       }
 
@@ -89,7 +92,8 @@ export const actions: Actions = {
           provider,
           repoUrl,
           token,
-          onlyMyTasks
+          onlyMyTasks,
+          privacy
         })
       }
 
@@ -103,7 +107,8 @@ export const actions: Actions = {
           provider,
           repoUrl,
           token,
-          onlyMyTasks
+          onlyMyTasks,
+          privacy
         })
       }
     }
@@ -149,7 +154,8 @@ export const actions: Actions = {
         provider: type === 'sync' ? provider : null,
         repo_url: type === 'sync' ? repoUrl : null,
         token: finalToken,
-        only_my_tasks: onlyMyTasks
+        only_my_tasks: onlyMyTasks,
+        privacy
       })
     } catch (err: unknown) {
       const pbError = err as { status?: number; data?: { message?: string }; message?: string }
@@ -160,7 +166,8 @@ export const actions: Actions = {
         provider,
         repoUrl,
         token,
-        onlyMyTasks
+        onlyMyTasks,
+        privacy
       })
     }
 

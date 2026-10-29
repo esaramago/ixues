@@ -20,164 +20,208 @@ import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
 import { getProjectByIdOrSlug, slugify } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
-  if (!locals.user) {
-    throw redirect(303, '/login')
+  let projectRecord
+  try {
+    projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId, { expand: 'user' })
+  } catch {
+    if (!locals.user) {
+      throw redirect(303, '/login')
+    }
+    throw error(404, 'Project not found')
   }
 
-  try {
-    const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
-    const project = structuredClone(projectRecord) as unknown as Project
+  const project = structuredClone(projectRecord) as unknown as Project
+  const isOwner = Boolean(locals.user && locals.user.id === project.user)
+  const isPublic = project.privacy === 'public'
 
+  if (!isOwner && !isPublic) {
+    if (!locals.user) {
+      throw redirect(303, '/login')
+    }
+    throw error(404, 'Project not found')
+  }
+
+  const isReadOnly = !isOwner
+
+  try {
     let statuses: Status[] = []
     let tasks: Task[] = []
     let syncError: string | null = null
 
     if (isSyncProject(project)) {
       const decryptedToken = decryptToken(project.token)
+      const ownerId = project.user
+      const ownerEmail = locals.user && isOwner ? locals.user.email : (projectRecord.expand?.user as { email?: string } | undefined)?.email
 
-      if (!project.description && project.repo_url) {
-        try {
-          const desc = await fetchProviderProjectDescription(
-            project,
-            decryptedToken,
-            locals.user.email
-          )
-          if (desc) {
-            project.description = desc
-            await locals.pb.collection('projects').update(project.id, {
-              description: desc
-            }).catch(() => {})
-          }
-        } catch (descErr) {
-          console.error('Failed to fetch project description:', descErr)
-        }
-      }
-
-      let providerStatuses: Status[] = []
-      try {
-        providerStatuses = await fetchProviderStatuses(project, locals.user.id, decryptedToken, locals.user.email)
-      } catch (err) {
-        console.error('Error fetching provider statuses:', err)
-      }
-
-      try {
-        const localStatusRecords = await locals.pb.collection('statuses').getFullList({
-          filter: `project = "${project.id}"`,
-          sort: 'order'
-        })
-
-        if (localStatusRecords.length === 0 && providerStatuses.length > 0) {
-          for (let i = 0; i < providerStatuses.length; i++) {
-            const ps = providerStatuses[i]
-            const record = await locals.pb.collection('statuses').create({
-              name: ps.name,
-              project: project.id,
-              order: i,
-              color: ps.color,
-              user: locals.user.id,
-              key: ps.id
-            })
-            statuses.push({
-              id: ps.id,
-              pbId: record.id,
-              key: ps.id,
-              name: ps.name,
-              order: i,
-              color: ps.color,
-              project: project.id,
-              user: locals.user.id
-            })
-          }
-        } else {
-          let currentStatusRecords = [...localStatusRecords]
-
-          // Auto-sync: if a status was removed on the provider, delete it from PocketBase
-          if (providerStatuses.length > 0) {
-            const filteredRecords: typeof localStatusRecords = []
-            for (const r of currentStatusRecords) {
-              const rKey = r.key || r.id
-              // Keep native open/closed statuses for GitHub
-              if (
-                project.provider === 'github' &&
-                (rKey === 'open' || rKey === 'closed' || r.name.toLowerCase() === 'open' || r.name.toLowerCase() === 'closed')
-              ) {
-                filteredRecords.push(r)
-                continue
-              }
-
-              const stillExists = providerStatuses.some((ps) => {
-                const norm = (s: string) => s.toLowerCase().replace(/[\s\-_:]+/g, '')
-                return (
-                  norm(ps.name) === norm(r.name) ||
-                  (ps.key && r.key && norm(ps.key) === norm(r.key)) ||
-                  ps.id === rKey ||
-                  (ps.key && ps.key === rKey)
-                )
-              })
-
-              if (!stillExists) {
-                try {
-                  await locals.pb.collection('statuses').delete(r.id)
-                } catch (delErr) {
-                  console.error('Failed to delete removed provider status from PB:', delErr)
-                }
-              } else {
-                filteredRecords.push(r)
-              }
+      if (isOwner) {
+        if (!project.description && project.repo_url) {
+          try {
+            const desc = await fetchProviderProjectDescription(
+              project,
+              decryptedToken,
+              ownerEmail
+            )
+            if (desc) {
+              project.description = desc
+              await locals.pb.collection('projects').update(project.id, {
+                description: desc
+              }).catch(() => {})
             }
-            currentStatusRecords = filteredRecords
+          } catch (descErr) {
+            console.error('Failed to fetch project description:', descErr)
           }
+        }
 
-          let nextOrder = currentStatusRecords.length > 0
-            ? Math.max(...currentStatusRecords.map((r) => (r.order ?? 0))) + 1
-            : 0
+        let providerStatuses: Status[] = []
+        try {
+          providerStatuses = await fetchProviderStatuses(project, ownerId, decryptedToken, ownerEmail)
+        } catch (err) {
+          console.error('Error fetching provider statuses:', err)
+        }
 
-          for (const ps of providerStatuses) {
-            const psKey = ps.key || ps.id
-            const alreadyExists = currentStatusRecords.some((r) => {
-              const norm = (s: string) => s.toLowerCase().replace(/[\s\-_:]+/g, '')
-              return (
-                norm(r.name) === norm(ps.name) ||
-                (r.key && ps.key && norm(r.key) === norm(ps.key)) ||
-                r.key === psKey ||
-                r.id === ps.id
-              )
-            })
+        try {
+          const localStatusRecords = await locals.pb.collection('statuses').getFullList({
+            filter: `project = "${project.id}"`,
+            sort: 'order'
+          })
 
-            if (!alreadyExists) {
+          if (localStatusRecords.length === 0 && providerStatuses.length > 0) {
+            for (let i = 0; i < providerStatuses.length; i++) {
+              const ps = providerStatuses[i]
               const record = await locals.pb.collection('statuses').create({
                 name: ps.name,
                 project: project.id,
-                order: nextOrder++,
+                order: i,
                 color: ps.color,
-                user: locals.user.id,
-                key: psKey
+                user: ownerId,
+                key: ps.id
               })
-              currentStatusRecords.push(record)
+              statuses.push({
+                id: ps.id,
+                pbId: record.id,
+                key: ps.id,
+                name: ps.name,
+                order: i,
+                color: ps.color,
+                project: project.id,
+                user: ownerId
+              })
             }
+          } else {
+            let currentStatusRecords = [...localStatusRecords]
+
+            // Auto-sync: if a status was removed on the provider, delete it from PocketBase
+            if (providerStatuses.length > 0) {
+              const filteredRecords: typeof localStatusRecords = []
+              for (const r of currentStatusRecords) {
+                const rKey = r.key || r.id
+                // Keep native open/closed statuses for GitHub
+                if (
+                  project.provider === 'github' &&
+                  (rKey === 'open' || rKey === 'closed' || r.name.toLowerCase() === 'open' || r.name.toLowerCase() === 'closed')
+                ) {
+                  filteredRecords.push(r)
+                  continue
+                }
+
+                const stillExists = providerStatuses.some((ps) => {
+                  const norm = (s: string) => s.toLowerCase().replace(/[\s\-_:]+/g, '')
+                  return (
+                    norm(ps.name) === norm(r.name) ||
+                    (ps.key && r.key && norm(ps.key) === norm(r.key)) ||
+                    ps.id === rKey ||
+                    (ps.key && ps.key === rKey)
+                  )
+                })
+
+                if (!stillExists) {
+                  try {
+                    await locals.pb.collection('statuses').delete(r.id)
+                  } catch (delErr) {
+                    console.error('Failed to delete removed provider status from PB:', delErr)
+                  }
+                } else {
+                  filteredRecords.push(r)
+                }
+              }
+              currentStatusRecords = filteredRecords
+            }
+
+            let nextOrder = currentStatusRecords.length > 0
+              ? Math.max(...currentStatusRecords.map((r) => (r.order ?? 0))) + 1
+              : 0
+
+            for (const ps of providerStatuses) {
+              const psKey = ps.key || ps.id
+              const alreadyExists = currentStatusRecords.some((r) => {
+                const norm = (s: string) => s.toLowerCase().replace(/[\s\-_:]+/g, '')
+                return (
+                  norm(r.name) === norm(ps.name) ||
+                  (r.key && ps.key && norm(r.key) === norm(ps.key)) ||
+                  r.key === psKey ||
+                  r.id === ps.id
+                )
+              })
+
+              if (!alreadyExists) {
+                const record = await locals.pb.collection('statuses').create({
+                  name: ps.name,
+                  project: project.id,
+                  order: nextOrder++,
+                  color: ps.color,
+                  user: ownerId,
+                  key: psKey
+                })
+                currentStatusRecords.push(record)
+              }
+            }
+
+            currentStatusRecords.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
+            statuses = currentStatusRecords.map((r) => ({
+              id: r.key || r.id,
+              pbId: r.id,
+              key: r.key,
+              name: r.name,
+              order: r.order,
+              color: r.color,
+              project: r.project,
+              user: r.user
+            }))
           }
-
-          currentStatusRecords.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-
-          statuses = currentStatusRecords.map((r) => ({
-            id: r.key || r.id,
-            pbId: r.id,
-            key: r.key,
-            name: r.name,
-            order: r.order,
-            color: r.color,
-            project: r.project,
-            user: r.user
-          }))
+        } catch (err) {
+          console.error('Error managing persisted statuses:', err)
+          statuses = providerStatuses
         }
-      } catch (err) {
-        console.error('Error managing persisted statuses:', err)
-        statuses = providerStatuses
+      } else {
+        // Read-only visitor: only fetch existing statuses from PB or provider
+        try {
+          const localStatusRecords = await locals.pb.collection('statuses').getFullList({
+            filter: `project = "${project.id}"`,
+            sort: 'order'
+          })
+          if (localStatusRecords.length > 0) {
+            statuses = localStatusRecords.map((r) => ({
+              id: r.key || r.id,
+              pbId: r.id,
+              key: r.key,
+              name: r.name,
+              order: r.order,
+              color: r.color,
+              project: r.project,
+              user: r.user
+            }))
+          } else {
+            statuses = await fetchProviderStatuses(project, ownerId, decryptedToken, ownerEmail)
+          }
+        } catch {
+          statuses = await fetchProviderStatuses(project, ownerId, decryptedToken, ownerEmail).catch(() => [])
+        }
       }
 
       if (project.repo_url) {
         try {
-          tasks = await fetchProviderIssues(project, locals.user.id, decryptedToken, locals.user.email, statuses)
+          tasks = await fetchProviderIssues(project, ownerId, decryptedToken, ownerEmail, statuses)
         } catch (err: unknown) {
           syncError = err instanceof Error ? err.message : `Failed to fetch issues from ${project.provider || 'provider'}`
           console.error('Error fetching provider issues:', syncError)
@@ -209,9 +253,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       project: sanitizeProject(project),
       statuses,
       tasks,
-      syncError
+      syncError,
+      isReadOnly
     }
-  } catch {
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'status' in err) {
+      throw err
+    }
     throw error(404, 'Project not found')
   }
 }
@@ -226,7 +274,13 @@ export const actions: Actions = {
     try {
       const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
-    } catch {
+      if (project.user !== locals.user.id) {
+        throw error(403, 'Forbidden')
+      }
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'status' in err) {
+        throw err
+      }
       throw error(404, 'Project not found')
     }
 
@@ -312,7 +366,13 @@ export const actions: Actions = {
     try {
       const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
-    } catch {
+      if (project.user !== locals.user.id) {
+        throw error(403, 'Forbidden')
+      }
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'status' in err) {
+        throw err
+      }
       throw error(404, 'Project not found')
     }
 
@@ -436,7 +496,13 @@ export const actions: Actions = {
     try {
       const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
-    } catch {
+      if (project.user !== locals.user.id) {
+        throw error(403, 'Forbidden')
+      }
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'status' in err) {
+        throw err
+      }
       throw error(404, 'Project not found')
     }
 
@@ -535,7 +601,13 @@ export const actions: Actions = {
     try {
       const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
-    } catch {
+      if (project.user !== locals.user.id) {
+        throw error(403, 'Forbidden')
+      }
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'status' in err) {
+        throw err
+      }
       throw error(404, 'Project not found')
     }
 
@@ -600,7 +672,13 @@ export const actions: Actions = {
     try {
       const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
-    } catch {
+      if (project.user !== locals.user.id) {
+        throw error(403, 'Forbidden')
+      }
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'status' in err) {
+        throw err
+      }
       throw error(404, 'Project not found')
     }
 

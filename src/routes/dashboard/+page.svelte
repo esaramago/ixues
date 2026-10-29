@@ -51,6 +51,9 @@
                 {:else}
                   <wa-badge variant="brand">Local</wa-badge>
                 {/if}
+                {#if project.privacy === 'public'}
+                  <wa-badge variant="neutral">Public</wa-badge>
+                {/if}
               </Grid>
             </Grid>
             {#if project.description}

@@ -18,6 +18,7 @@
   let onlyMyTasks = $state(false)
 
   function canDeleteStatus(status: Status): boolean {
+    if (data.isReadOnly) return false
     if (data.project.type === 'local') return true
     if (data.project.provider === 'github') {
       const key = (status.key || status.id || '').toLowerCase()
@@ -57,6 +58,7 @@
   )
 
   function handleDragOver(event: DragEvent) {
+    if (data.isReadOnly) return
     event.preventDefault()
     if (event.dataTransfer) {
       event.dataTransfer.dropEffect = 'move'
@@ -64,6 +66,7 @@
   }
 
   async function handleDrop(event: DragEvent, targetStatusId: string | null) {
+    if (data.isReadOnly) return
     event.preventDefault()
     const taskId = event.dataTransfer?.getData('text/plain')
     if (!taskId) return
@@ -100,6 +103,7 @@
   }
 
   async function handleMoveStatus(statusId: string, direction: 'left' | 'right') {
+    if (data.isReadOnly) return
     const formData = new FormData()
     formData.append('statusId', statusId)
     formData.append('direction', direction)
@@ -121,7 +125,7 @@
 
 <Grid direction="column">
   <Grid align="center" justify="space-between">
-    <Back href="/dashboard" title={data.project.name}>
+    <Back href={data.user ? '/dashboard' : '/'} title={data.project.name}>
       {#if data.project.type === 'sync'}
         <wa-badge variant="neutral">
           <wa-icon slot="start" family="brands" name={data.project.provider}></wa-icon>
@@ -130,57 +134,64 @@
       {:else}
         <wa-badge variant="brand">Local</wa-badge>
       {/if}
+      {#if data.project.privacy === 'public'}
+        <wa-badge variant="neutral">Public</wa-badge>
+      {/if}
     </Back>
 
     <Grid align="center" gap="s">
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <wa-button
-        size="s"
-        variant={onlyMyTasks ? 'brand' : 'neutral'}
-        onclick={() => (onlyMyTasks = !onlyMyTasks)}
-      >
-        <wa-icon slot="start" name="user" variant={onlyMyTasks ? 'solid' : 'regular'}></wa-icon>
-        Only my tasks
-      </wa-button>
-
-      <wa-button href={`/projects/${data.project.slug || data.project.id}/tasks/new`} size="s" variant="brand">
-        <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
-        New Task
-      </wa-button>
-
-      <wa-dropdown
-        placement="bottom-end"
-        onwa-select={(e: CustomEvent<{ item: HTMLElement }>) => {
-          if (e.detail.item.getAttribute('value') === 'new-status') {
-            isCreateDialogOpen = true
-          }
-        }}
-      >
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <wa-button slot="trigger" size="s" variant="neutral" aria-label="Project actions">
-          <wa-icon name="ellipsis-vertical" variant="solid"></wa-icon>
-        </wa-button>
-        <wa-dropdown-item
-          value="edit-project"
-          href={`/projects/${data.project.slug || data.project.id}/edit`}
-        >
-          <wa-icon slot="icon" name="pen-to-square" variant="solid"></wa-icon>
-          Edit Project
-        </wa-dropdown-item>
-        {#if data.project.type === 'local' || data.project.provider === 'github'}
+      {#if !data.isReadOnly}
+        {#if data.user}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <wa-dropdown-item
-            value="new-status"
-            onclick={() => (isCreateDialogOpen = true)}
+          <wa-button
+            size="s"
+            variant={onlyMyTasks ? 'brand' : 'neutral'}
+            onclick={() => (onlyMyTasks = !onlyMyTasks)}
           >
-            <wa-icon slot="icon" name="plus" variant="solid"></wa-icon>
-            New status
-          </wa-dropdown-item>
+            <wa-icon slot="start" name="user" variant={onlyMyTasks ? 'solid' : 'regular'}></wa-icon>
+            Only my tasks
+          </wa-button>
         {/if}
-      </wa-dropdown>
+
+        <wa-button href={`/projects/${data.project.slug || data.project.id}/tasks/new`} size="s" variant="brand">
+          <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
+          New Task
+        </wa-button>
+
+        <wa-dropdown
+          placement="bottom-end"
+          onwa-select={(e: CustomEvent<{ item: HTMLElement }>) => {
+            if (e.detail.item.getAttribute('value') === 'new-status') {
+              isCreateDialogOpen = true
+            }
+          }}
+        >
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <wa-button slot="trigger" size="s" variant="neutral" aria-label="Project actions">
+            <wa-icon name="ellipsis-vertical" variant="solid"></wa-icon>
+          </wa-button>
+          <wa-dropdown-item
+            value="edit-project"
+            href={`/projects/${data.project.slug || data.project.id}/edit`}
+          >
+            <wa-icon slot="icon" name="pen-to-square" variant="solid"></wa-icon>
+            Edit Project
+          </wa-dropdown-item>
+          {#if data.project.type === 'local' || data.project.provider === 'github'}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <wa-dropdown-item
+              value="new-status"
+              onclick={() => (isCreateDialogOpen = true)}
+            >
+              <wa-icon slot="icon" name="plus" variant="solid"></wa-icon>
+              New status
+            </wa-dropdown-item>
+          {/if}
+        </wa-dropdown>
+      {/if}
       
       {#if data.project.repo_url}
         <wa-button href={data.project.repo_url} target="_blank" rel="noreferrer">
@@ -209,7 +220,7 @@
     <wa-card>
       <Grid direction="column" align="center" gap="s">
         <p>No statuses found for this project.</p>
-        {#if data.project.type === 'local'}
+        {#if data.project.type === 'local' && !data.isReadOnly}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <wa-button variant="brand" onclick={() => (isCreateDialogOpen = true)}>
@@ -227,8 +238,8 @@
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <wa-card
             class="status"
-            ondragover={handleDragOver}
-            ondrop={(e: DragEvent) => handleDrop(e, status.id)}
+            ondragover={data.isReadOnly ? undefined : handleDragOver}
+            ondrop={data.isReadOnly ? undefined : ((e: DragEvent) => handleDrop(e, status.id))}
           >
             <Grid direction="column" gap="s">
               <Grid align="center" justify="space-between">
@@ -237,67 +248,69 @@
                   <strong>{status.name}</strong>
                   <wa-badge variant="neutral" pill appearance="filled-outlined" class="status__counter">{statusTasks.length}</wa-badge>
                 </Grid>
-                <Grid align="center" gap="xs">
-                  <wa-dropdown
-                    placement="bottom-end"
-                    onwa-select={(e: CustomEvent<{ item: HTMLElement }>) => {
-                      const val = e.detail.item.getAttribute('value')
-                      if (val === 'edit') {
-                        editingStatus = status
-                      } else if (val === 'move-left') {
-                        handleMoveStatus(status.id, 'left')
-                      } else if (val === 'move-right') {
-                        handleMoveStatus(status.id, 'right')
-                      } else if (val === 'delete') {
-                        deletingStatus = status
-                      }
-                    }}
-                  >
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <wa-button slot="trigger" size="s" variant="neutral" aria-label="Status actions" appearance="plain">
-                      <wa-icon name="ellipsis-vertical" variant="solid"></wa-icon>
-                    </wa-button>
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <wa-dropdown-item
-                      value="move-left"
-                      disabled={statusIndex === 0}
-                      onclick={() => handleMoveStatus(status.id, 'left')}
+                {#if !data.isReadOnly}
+                  <Grid align="center" gap="xs">
+                    <wa-dropdown
+                      placement="bottom-end"
+                      onwa-select={(e: CustomEvent<{ item: HTMLElement }>) => {
+                        const val = e.detail.item.getAttribute('value')
+                        if (val === 'edit') {
+                          editingStatus = status
+                        } else if (val === 'move-left') {
+                          handleMoveStatus(status.id, 'left')
+                        } else if (val === 'move-right') {
+                          handleMoveStatus(status.id, 'right')
+                        } else if (val === 'delete') {
+                          deletingStatus = status
+                        }
+                      }}
                     >
-                      <wa-icon slot="icon" name="arrow-left" variant="regular"></wa-icon>
-                      Move left
-                    </wa-dropdown-item>
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <wa-dropdown-item
-                      value="move-right"
-                      disabled={statusIndex === data.statuses.length - 1}
-                      onclick={() => handleMoveStatus(status.id, 'right')}
-                    >
-                      <wa-icon slot="icon" name="arrow-right" variant="regular"></wa-icon>
-                      Move right
-                    </wa-dropdown-item>
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <wa-dropdown-item value="edit" onclick={() => (editingStatus = status)}>
-                      <wa-icon slot="icon" name="pen" variant="regular"></wa-icon>
-                      Edit status
-                    </wa-dropdown-item>
-                    {#if canDeleteStatus(status)}
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <wa-button slot="trigger" size="s" variant="neutral" aria-label="Status actions" appearance="plain">
+                        <wa-icon name="ellipsis-vertical" variant="solid"></wa-icon>
+                      </wa-button>
                       <!-- svelte-ignore a11y_click_events_have_key_events -->
                       <!-- svelte-ignore a11y_no_static_element_interactions -->
                       <wa-dropdown-item
-                        value="delete"
-                        variant="danger"
-                        onclick={() => (deletingStatus = status)}
+                        value="move-left"
+                        disabled={statusIndex === 0}
+                        onclick={() => handleMoveStatus(status.id, 'left')}
                       >
-                        <wa-icon slot="icon" name="trash" variant="regular"></wa-icon>
-                        Delete status
+                        <wa-icon slot="icon" name="arrow-left" variant="regular"></wa-icon>
+                        Move left
                       </wa-dropdown-item>
-                    {/if}
-                  </wa-dropdown>
-                </Grid>
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <wa-dropdown-item
+                        value="move-right"
+                        disabled={statusIndex === data.statuses.length - 1}
+                        onclick={() => handleMoveStatus(status.id, 'right')}
+                      >
+                        <wa-icon slot="icon" name="arrow-right" variant="regular"></wa-icon>
+                        Move right
+                      </wa-dropdown-item>
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <wa-dropdown-item value="edit" onclick={() => (editingStatus = status)}>
+                        <wa-icon slot="icon" name="pen" variant="regular"></wa-icon>
+                        Edit status
+                      </wa-dropdown-item>
+                      {#if canDeleteStatus(status)}
+                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                        <!-- svelte-ignore a11y_no_static_element_interactions -->
+                        <wa-dropdown-item
+                          value="delete"
+                          variant="danger"
+                          onclick={() => (deletingStatus = status)}
+                        >
+                          <wa-icon slot="icon" name="trash" variant="regular"></wa-icon>
+                          Delete status
+                        </wa-dropdown-item>
+                      {/if}
+                    </wa-dropdown>
+                  </Grid>
+                {/if}
               </Grid>
 
               <Grid direction="column" gap="s">
@@ -305,20 +318,22 @@
                   <div class="empty-state">No tasks</div>
                 {:else}
                   {#each statusTasks as task (task.id)}
-                    <Task {task} projectId={data.project.slug || data.project.id} />
+                    <Task {task} projectId={data.project.slug || data.project.id} draggable={!data.isReadOnly} />
                   {/each}
                 {/if}
               </Grid>
 
-              <wa-button
-                href={`/projects/${data.project.slug || data.project.id}/tasks/new?status=${status.id}`}
-                size="xs"
-                appearance="plain"
-                variant="neutral"
-              >
-                <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
-                New Task
-              </wa-button>
+              {#if !data.isReadOnly}
+                <wa-button
+                  href={`/projects/${data.project.slug || data.project.id}/tasks/new?status=${status.id}`}
+                  size="xs"
+                  appearance="plain"
+                  variant="neutral"
+                >
+                  <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
+                  New Task
+                </wa-button>
+              {/if}
             </Grid>
           </wa-card>
         {/each}
@@ -326,8 +341,8 @@
         {#if unassignedTasks.length > 0}
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <wa-card
-            ondragover={handleDragOver}
-            ondrop={(e: DragEvent) => handleDrop(e, null)}
+            ondragover={data.isReadOnly ? undefined : handleDragOver}
+            ondrop={data.isReadOnly ? undefined : ((e: DragEvent) => handleDrop(e, null))}
           >
             <Grid direction="column" gap="s">
               <Grid align="center" justify="space-between">
@@ -337,7 +352,7 @@
 
               <Grid direction="column" gap="s">
                 {#each unassignedTasks as task (task.id)}
-                  <Task {task} projectId={data.project.slug || data.project.id} />
+                  <Task {task} projectId={data.project.slug || data.project.id} draggable={!data.isReadOnly} />
                 {/each}
               </Grid>
             </Grid>
@@ -348,53 +363,55 @@
   {/if}
 </Grid>
 
-<wa-dialog
-  label="New Status"
-  open={isCreateDialogOpen}
-  onwa-after-hide={() => (isCreateDialogOpen = false)}
->
-  <StatusForm
-    defaultOrder={data.statuses.length}
-    {form}
-    oncancel={() => (isCreateDialogOpen = false)}
-    onsuccess={() => (isCreateDialogOpen = false)}
-  />
-</wa-dialog>
-
-<wa-dialog
-  label="Edit Status"
-  open={!!editingStatus}
-  onwa-after-hide={() => (editingStatus = null)}
->
-  {#if editingStatus}
-    <StatusForm
-      status={editingStatus}
-      defaultOrder={editingStatus.order}
-      {form}
-      isSync={data.project.type === 'sync' && data.project.provider !== 'github'}
-      oncancel={() => (editingStatus = null)}
-      onsuccess={() => (editingStatus = null)}
-    />
-  {/if}
-</wa-dialog>
-
-{#if deletingStatus}
-  <ConfirmDialog
-    open={Boolean(deletingStatus)}
-    title="Delete Status"
-    message={`Are you sure you want to delete status "${deletingStatus.name}"? Any tasks in this column will become unassigned.`}
-    confirmLabel="Delete Status"
-    confirmVariant="danger"
-    action="?/deleteStatus"
-    oncancel={() => {
-      deletingStatus = null
-    }}
-    onconfirm={() => {
-      deletingStatus = null
-    }}
+{#if !data.isReadOnly}
+  <wa-dialog
+    label="New Status"
+    open={isCreateDialogOpen}
+    onwa-after-hide={() => (isCreateDialogOpen = false)}
   >
-    <input type="hidden" name="statusId" value={deletingStatus.id} />
-  </ConfirmDialog>
+    <StatusForm
+      defaultOrder={data.statuses.length}
+      {form}
+      oncancel={() => (isCreateDialogOpen = false)}
+      onsuccess={() => (isCreateDialogOpen = false)}
+    />
+  </wa-dialog>
+
+  <wa-dialog
+    label="Edit Status"
+    open={!!editingStatus}
+    onwa-after-hide={() => (editingStatus = null)}
+  >
+    {#if editingStatus}
+      <StatusForm
+        status={editingStatus}
+        defaultOrder={editingStatus.order}
+        {form}
+        isSync={data.project.type === 'sync' && data.project.provider !== 'github'}
+        oncancel={() => (editingStatus = null)}
+        onsuccess={() => (editingStatus = null)}
+      />
+    {/if}
+  </wa-dialog>
+
+  {#if deletingStatus}
+    <ConfirmDialog
+      open={Boolean(deletingStatus)}
+      title="Delete Status"
+      message={`Are you sure you want to delete status "${deletingStatus.name}"? Any tasks in this column will become unassigned.`}
+      confirmLabel="Delete Status"
+      confirmVariant="danger"
+      action="?/deleteStatus"
+      oncancel={() => {
+        deletingStatus = null
+      }}
+      onconfirm={() => {
+        deletingStatus = null
+      }}
+    >
+      <input type="hidden" name="statusId" value={deletingStatus.id} />
+    </ConfirmDialog>
+  {/if}
 {/if}
 
 

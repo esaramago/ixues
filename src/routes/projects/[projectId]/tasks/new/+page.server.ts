@@ -29,6 +29,10 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
     const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
     const project = structuredClone(projectRecord) as unknown as Project
 
+    if (project.user !== locals.user.id) {
+      throw error(403, 'Forbidden')
+    }
+
     if (isSyncProject(project)) {
       const decryptedToken = decryptToken(project.token)
       let statuses: Status[] = []
@@ -166,7 +170,13 @@ export const actions: Actions = {
     try {
       const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
-    } catch {
+      if (project.user !== locals.user.id) {
+        throw error(403, 'Forbidden')
+      }
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'status' in err) {
+        throw err
+      }
       throw error(404, 'Project not found')
     }
 

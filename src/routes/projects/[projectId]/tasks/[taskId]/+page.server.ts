@@ -23,20 +23,38 @@ import { parseTaskFormData } from '@/lib/server/task-form'
 import { generateTaskSlug, getProjectByIdOrSlug, getTaskByIdOrSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
-  if (!locals.user) {
-    throw redirect(303, '/login')
+  let projectRecord
+  try {
+    projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId, { expand: 'user' })
+  } catch {
+    if (!locals.user) {
+      throw redirect(303, '/login')
+    }
+    throw error(404, 'Project not found')
   }
 
-  try {
-    const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
-    const project = structuredClone(projectRecord) as unknown as Project
+  const project = structuredClone(projectRecord) as unknown as Project
+  const isOwner = Boolean(locals.user && locals.user.id === project.user)
+  const isPublic = project.privacy === 'public'
 
+  if (!isOwner && !isPublic) {
+    if (!locals.user) {
+      throw redirect(303, '/login')
+    }
+    throw error(404, 'Project not found')
+  }
+
+  const isReadOnly = !isOwner
+
+  try {
     if (isSyncProject(project)) {
       if (!project.repo_url) {
         throw error(400, 'Project repository URL is missing')
       }
 
       const decryptedToken = decryptToken(project.token)
+      const ownerId = project.user
+      const ownerEmail = locals.user && isOwner ? locals.user.email : (projectRecord.expand?.user as { email?: string } | undefined)?.email
 
       let statuses: Status[] = []
       try {
@@ -44,7 +62,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
           filter: `project = "${project.id}"`,
           sort: 'order'
         })
-        const providerStatuses = await fetchProviderStatuses(project, locals.user.id, decryptedToken, locals.user.email)
+        const providerStatuses = await fetchProviderStatuses(project, ownerId, decryptedToken, ownerEmail)
         if (localStatusRecords.length > 0) {
           const validRecords = localStatusRecords.filter((r) => {
             const rKey = r.key || r.id
@@ -74,15 +92,15 @@ export const load: PageServerLoad = async ({ params, locals }) => {
           statuses = providerStatuses
         }
       } catch {
-        statuses = await fetchProviderStatuses(project, locals.user.id, decryptedToken, locals.user.email)
+        statuses = await fetchProviderStatuses(project, ownerId, decryptedToken, ownerEmail)
       }
 
       const task = await fetchProviderIssue(
         project,
         params.taskId,
-        locals.user.id,
+        ownerId,
         decryptedToken,
-        locals.user.email,
+        ownerEmail,
         statuses
       )
 
@@ -97,8 +115,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       if (project.repo_url) {
         try {
           const [labels, allIssues] = await Promise.all([
-            fetchProviderLabels(project, decryptedToken, locals.user.email),
-            fetchProviderIssues(project, locals.user.id, decryptedToken, locals.user.email, statuses)
+            fetchProviderLabels(project, decryptedToken, ownerEmail),
+            fetchProviderIssues(project, ownerId, decryptedToken, ownerEmail, statuses)
           ])
           availableLabels = labels
           availableTasks = allIssues.filter((t) => String(t.number || t.id) !== String(params.taskId))
@@ -114,7 +132,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
         statuses,
         users,
         availableLabels,
-        availableTasks
+        availableTasks,
+        isReadOnly
       }
     }
 
@@ -179,7 +198,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       statuses,
       users,
       availableLabels: DEFAULT_LOCAL_LABELS.map((name) => getLabelInfo(name)),
-      availableTasks
+      availableTasks,
+      isReadOnly
     }
   } catch (err: unknown) {
     if (err && typeof err === 'object' && 'status' in err) {
@@ -199,7 +219,13 @@ export const actions: Actions = {
     try {
       const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
-    } catch {
+      if (project.user !== locals.user.id) {
+        throw error(403, 'Forbidden')
+      }
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'status' in err) {
+        throw err
+      }
       throw error(404, 'Project not found')
     }
 
@@ -335,7 +361,13 @@ export const actions: Actions = {
     try {
       const projectRecord = await getProjectByIdOrSlug(locals.pb, params.projectId)
       project = structuredClone(projectRecord) as unknown as Project
-    } catch {
+      if (project.user !== locals.user.id) {
+        throw error(403, 'Forbidden')
+      }
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'status' in err) {
+        throw err
+      }
       throw error(404, 'Project not found')
     }
 

@@ -47,6 +47,7 @@
     showDelete?: boolean
     cancelHref?: string
     submitLabel?: string
+    readonly?: boolean
   }
 
   let {
@@ -65,7 +66,8 @@
     deleteAction = '?/delete',
     showDelete = true,
     cancelHref,
-    submitLabel
+    submitLabel,
+    readonly = false
   }: Props = $props()
 
   let isEdit = $derived(!!task)
@@ -243,6 +245,8 @@
             label="Title"
             placeholder="e.g. Implement user authentication"
             value={form?.title ?? task?.title ?? ''}
+            readonly={readonly}
+            disabled={readonly}
             required
           ></wa-input>
 
@@ -251,6 +255,8 @@
             label="Description"
             placeholder="Provide details about this task..."
             value={form?.description ?? task?.description ?? ''}
+            readonly={readonly}
+            disabled={readonly}
             rows={4}
           ></wa-textarea>
 
@@ -259,6 +265,7 @@
               name="priority"
               label="Priority"
               value={priority}
+              disabled={readonly}
               onchange={handlePriorityChange}
             >
               {#if priority && getPriorityIcon(priority)}
@@ -278,6 +285,7 @@
                 name="status"
                 label="Status"
                 value={status}
+                disabled={readonly}
                 onchange={handleStatusChange}
               >
                 <wa-option value="">No Status</wa-option>
@@ -291,6 +299,7 @@
               name="assigned"
               label="Assigned"
               value={assigned}
+              disabled={readonly}
               onchange={handleAssignedChange}
             >
               <wa-option value="">Unassigned</wa-option>
@@ -308,6 +317,7 @@
             multiple
             with-clear
             value={selectedLabels}
+            disabled={readonly}
             onchange={handleLabelsChange}
           >
             {#each allLabelOptions as labelName (labelName)}
@@ -336,24 +346,26 @@
                         {#if taskNum}#{taskNum} {/if}{taskTitle || rel.taskId}
                       </a>
                     </Grid>
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <wa-button
-                      type="button"
-                      size="xs"
-                      variant="neutral"
-                      appearance="plain"
-                      onclick={() => handleRemoveRelationship(index)}
-                      aria-label="Remove relationship"
-                    >
-                      <wa-icon name="xmark" variant="solid"></wa-icon>
-                    </wa-button>
+                    {#if !readonly}
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <wa-button
+                        type="button"
+                        size="xs"
+                        variant="neutral"
+                        appearance="plain"
+                        onclick={() => handleRemoveRelationship(index)}
+                        aria-label="Remove relationship"
+                      >
+                        <wa-icon name="xmark" variant="solid"></wa-icon>
+                      </wa-button>
+                    {/if}
                   </Grid>
                 {/each}
               </Grid>
             {/if}
 
-            {#if availableTasks.length > 0}
+            {#if !readonly && availableTasks.length > 0}
               <Grid break="mobile" align="end" gap="s">
                 <wa-select
                   label="Relation Type"
@@ -421,7 +433,11 @@
             </Grid>
           {/if}
 
-          {#if isEdit && showDelete}
+          {#if readonly}
+            <Grid justify="end" gap="s">
+              <wa-button variant="neutral" href={resolvedCancelHref}>Back to Project</wa-button>
+            </Grid>
+          {:else if isEdit && showDelete}
             <Grid justify="space-between" align="center">
               <!-- svelte-ignore a11y_click_events_have_key_events -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -450,7 +466,7 @@
   </wa-card>
 </Grid>
 
-{#if isEdit && showDelete}
+{#if isEdit && showDelete && !readonly}
   <ConfirmDialog
     bind:open={isConfirmOpen}
     title="Delete Task"

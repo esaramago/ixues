@@ -75,12 +75,13 @@ export async function generateTaskSlug(
 
 export async function getProjectByIdOrSlug(
   pb: PocketBase,
-  identifier: string
+  identifier: string,
+  options?: RecordOptions
 ): Promise<RecordModel> {
   try {
-    return await pb.collection('projects').getFirstListItem(`slug = "${identifier}"`)
+    return await pb.collection('projects').getFirstListItem(`slug = "${identifier}"`, options)
   } catch {
-    return await pb.collection('projects').getOne(identifier)
+    return await pb.collection('projects').getOne(identifier, options)
   }
 }
 
