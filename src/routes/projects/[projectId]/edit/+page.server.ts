@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import { error, fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
-import { fetchProviderProjectDescription } from '@/lib/providers'
+import { fetchProviderProjectDescription, validateProviderRepoUrl } from '@/lib/providers'
 import { decryptToken, encryptToken, sanitizeProject } from '@/lib/server/crypto'
 import { generateProjectSlug, getProjectByIdOrSlug } from '@/lib/slug'
 
@@ -99,11 +99,10 @@ export const actions: Actions = {
         })
       }
 
-      try {
-        new URL(repoUrl)
-      } catch {
+      const repoUrlError = validateProviderRepoUrl(provider, repoUrl)
+      if (repoUrlError) {
         return fail(400, {
-          error: 'Please enter a valid URL.',
+          error: repoUrlError,
           name,
           type,
           provider,

@@ -1,6 +1,8 @@
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
 import type { Task, TaskLabel } from '@/types/task'
+import { parseGitHubRepo } from '@/lib/github'
+import { parseJiraUrl } from '@/lib/jira'
 import { githubAdapter } from './github'
 import { jiraAdapter } from './jira'
 import type { CreateIssueInput, ProviderAdapter, UpdateIssueInput } from './types'
@@ -10,6 +12,32 @@ export * from './types'
 const adapters: Record<string, ProviderAdapter> = {
   github: githubAdapter,
   jira: jiraAdapter
+}
+
+export function validateProviderRepoUrl(provider: string, repoUrl: string): string | null {
+  try {
+    const parsed = new URL(repoUrl)
+    if (parsed.protocol !== 'https:') {
+      return 'Repository URL must use HTTPS.'
+    }
+  } catch {
+    return 'Please enter a valid URL.'
+  }
+
+  const normProvider = provider.toLowerCase()
+  if (normProvider === 'github') {
+    if (!parseGitHubRepo(repoUrl)) {
+      return 'Please enter a valid GitHub repository URL (e.g., https://github.com/owner/repo).'
+    }
+  } else if (normProvider === 'jira') {
+    if (!parseJiraUrl(repoUrl)) {
+      return 'Please enter a valid public HTTPS Jira URL (e.g., https://your-domain.atlassian.net).'
+    }
+  } else {
+    return `Unsupported provider "${provider}".`
+  }
+
+  return null
 }
 
 export function getProvider(project?: Pick<Project, 'type' | 'provider'> | null): ProviderAdapter | null {

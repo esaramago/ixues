@@ -85,25 +85,109 @@ export interface JiraStatusItem {
 
 const cloudIdCache = new Map<string, string>()
 
+function isPrivateOrReservedIpv4(ip: string): boolean {
+  const parts = ip.split('.').map((p) => Number(p))
+  if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) {
+    return true
+  }
+
+  const [a, b, c] = parts
+
+  // 0.0.0.0/8 (current network)
+  if (a === 0) return true
+  // 10.0.0.0/8 (private)
+  if (a === 10) return true
+  // 100.64.0.0/10 (shared address space / CGNAT)
+  if (a === 100 && b >= 64 && b <= 127) return true
+  // 127.0.0.0/8 (loopback)
+  if (a === 127) return true
+  // 169.254.0.0/16 (link-local / cloud metadata)
+  if (a === 169 && b === 254) return true
+  // 172.16.0.0/12 (private)
+  if (a === 172 && b >= 16 && b <= 31) return true
+  // 192.0.0.0/24 (IETF protocol assignments)
+  if (a === 192 && b === 0 && c === 0) return true
+  // 192.0.2.0/24 (TEST-NET-1)
+  if (a === 192 && b === 0 && c === 2) return true
+  // 192.168.0.0/16 (private)
+  if (a === 192 && b === 168) return true
+  // 198.18.0.0/15 (benchmarking)
+  if (a === 198 && (b === 18 || b === 19)) return true
+  // 198.51.100.0/24 (TEST-NET-2)
+  if (a === 198 && b === 51 && c === 100) return true
+  // 203.0.113.0/24 (TEST-NET-3)
+  if (a === 203 && b === 0 && c === 113) return true
+  // 224.0.0.0/4 (multicast) and 240.0.0.0/4 (reserved/broadcast)
+  if (a >= 224) return true
+
+  return false
+}
+
+export function isAllowedJiraHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase().replace(/\.$/, '')
+  if (!host) return false
+
+  // Block IPv6 literals
+  if (host.startsWith('[') || host.includes(':')) {
+    return false
+  }
+
+  // Block localhost and internal / single-label hostnames (e.g. "pocketbase", "redis", "*.local")
+  if (
+    host === 'localhost' ||
+    !host.includes('.') ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local') ||
+    host.endsWith('.internal') ||
+    host.endsWith('.docker.internal') ||
+    host.endsWith('.arpa')
+  ) {
+    return false
+  }
+
+  // Check if hostname is an IPv4 address or numeric IP representation
+  const labels = host.split('.')
+  const isAllNumeric = labels.every((l) => /^\d+$/.test(l) || /^0x[0-9a-f]+$/i.test(l))
+  if (isAllNumeric) {
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+      return false
+    }
+    return !isPrivateOrReservedIpv4(host)
+  }
+
+  return true
+}
+
 export async function resolveJiraApiBaseUrl(hostUrl: string): Promise<string> {
-  const cached = cloudIdCache.get(hostUrl)
+  let validatedOrigin: string
+  try {
+    const parsed = new URL(hostUrl)
+    if (parsed.protocol !== 'https:' || !isAllowedJiraHost(parsed.hostname)) {
+      throw new Error('Invalid or disallowed Jira host URL')
+    }
+    validatedOrigin = parsed.origin
+  } catch {
+    throw new Error('Invalid or disallowed Jira host URL')
+  }
+
+  const cached = cloudIdCache.get(validatedOrigin)
   if (cached) return cached
 
   try {
-    const res = await fetch(`${hostUrl}/_edge/tenant_info`)
+    const res = await fetch(`${validatedOrigin}/_edge/tenant_info`, { redirect: 'error' })
     if (res.ok) {
       const data = (await res.json()) as { cloudId?: string }
-      if (data.cloudId) {
+      if (data.cloudId && /^[a-f0-9-]+$/i.test(data.cloudId)) {
         const apiBase = `https://api.atlassian.com/ex/jira/${data.cloudId}`
-        cloudIdCache.set(hostUrl, apiBase)
+        cloudIdCache.set(validatedOrigin, apiBase)
         return apiBase
       }
     }
   } catch {
-    // If not Jira Cloud or edge endpoint unavailable, fallback to hostUrl
+    // If not Jira Cloud or edge endpoint unavailable, fallback to validatedOrigin
   }
 
-  return hostUrl
+  return validatedOrigin
 }
 
 export function parseJiraUrl(repoUrl?: string | null): { hostUrl: string; projectKey?: string } | null {
@@ -117,7 +201,15 @@ export function parseJiraUrl(repoUrl?: string | null): { hostUrl: string; projec
         : `https://${cleaned}`
     )
 
-    const hostUrl = `${parsed.protocol}//${parsed.host}`
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+      return null
+    }
+
+    if (!isAllowedJiraHost(parsed.hostname)) {
+      return null
+    }
+
+    const hostUrl = parsed.origin
     const pathname = parsed.pathname
 
     // Look for project key in common Jira URL paths:
