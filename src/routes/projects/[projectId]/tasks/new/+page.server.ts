@@ -38,7 +38,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
       let statuses: Status[] = []
       try {
         const localStatusRecords = await locals.pb.collection('statuses').getFullList({
-          filter: `project = "${project.id}"`,
+          filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
           sort: 'order'
         })
         const providerStatuses = await fetchProviderStatuses(project, locals.user.id, decryptedToken, locals.user.email)
@@ -109,7 +109,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
     let statuses: Status[] = []
     try {
       const statusRecords = await locals.pb.collection('statuses').getFullList({
-        filter: `project = "${project.id}"`,
+        filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
         sort: 'order',
       })
       statuses = structuredClone(statusRecords) as unknown as Status[]
@@ -135,7 +135,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
     let availableTasks: Task[] = []
     try {
       const records = await locals.pb.collection('tasks').getFullList({
-        filter: `project = "${project.id}"`,
+        filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
         sort: 'number'
       })
       availableTasks = structuredClone(records) as unknown as Task[]
@@ -215,7 +215,7 @@ export const actions: Actions = {
         let projectStatuses: Status[] = []
         try {
           const statusRecords = await locals.pb.collection('statuses').getFullList({
-            filter: `project = "${project.id}"`,
+            filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
             sort: 'order'
           })
           projectStatuses = statusRecords.map((r) => ({
@@ -265,9 +265,12 @@ export const actions: Actions = {
     try {
       const highestTask = await locals.pb
         .collection('tasks')
-        .getFirstListItem(`project = "${project.id}"`, {
-          sort: '-number',
-        })
+        .getFirstListItem(
+          locals.pb.filter('project = {:projectId}', { projectId: project.id }),
+          {
+            sort: '-number',
+          }
+        )
       if (
         highestTask &&
         typeof highestTask.number === 'number' &&
@@ -276,7 +279,7 @@ export const actions: Actions = {
         nextNumber = highestTask.number + 1
       } else {
         const countResult = await locals.pb.collection('tasks').getList(1, 1, {
-          filter: `project = "${project.id}"`,
+          filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
         })
         nextNumber = countResult.totalItems + 1
       }
@@ -290,8 +293,13 @@ export const actions: Actions = {
       let nextOrder = 0
       try {
         const filter = status
-          ? `project = "${project.id}" && status = "${status}"`
-          : `project = "${project.id}" && status = null`
+          ? locals.pb.filter('project = {:projectId} && status = {:status}', {
+              projectId: project.id,
+              status
+            })
+          : locals.pb.filter('project = {:projectId} && status = null', {
+              projectId: project.id
+            })
         const highestOrderTask = await locals.pb
           .collection('tasks')
           .getFirstListItem(filter, {

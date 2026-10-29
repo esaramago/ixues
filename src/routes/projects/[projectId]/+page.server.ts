@@ -75,7 +75,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
       try {
         const localStatusRecords = await locals.pb.collection('statuses').getFullList({
-          filter: `project = "${project.id}"`,
+          filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
           sort: 'order'
         })
 
@@ -199,14 +199,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       }
     } else {
       const statusRecords = await locals.pb.collection('statuses').getFullList({
-        filter: `project = "${project.id}"`,
+        filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
         sort: 'order'
       })
       statuses = structuredClone(statusRecords) as unknown as Status[]
 
       try {
         const taskRecords = await locals.pb.collection('tasks').getFullList({
-          filter: `project = "${project.id}"`,
+          filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
           sort: 'order,number',
           expand: 'assigned'
         })
@@ -279,7 +279,7 @@ export const actions: Actions = {
     let order = orderStr ? parseInt(orderStr, 10) : NaN
     if (isNaN(order)) {
       const existing = await locals.pb.collection('statuses').getFullList({
-        filter: `project = "${project.id}"`,
+        filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
         sort: '-order',
         limit: 1
       })
@@ -377,7 +377,10 @@ export const actions: Actions = {
         existingStatus = await locals.pb.collection('statuses').getOne(statusId)
       } catch {
         const records = await locals.pb.collection('statuses').getFullList({
-          filter: `project = "${project.id}" && (id = "${statusId}" || key = "${statusId}")`
+          filter: locals.pb.filter(
+            'project = {:projectId} && (id = {:statusId} || key = {:statusId})',
+            { projectId: project.id, statusId }
+          )
         })
         if (records.length > 0) {
           existingStatus = records[0]
@@ -490,7 +493,10 @@ export const actions: Actions = {
         existingStatus = await locals.pb.collection('statuses').getOne(statusId)
       } catch {
         const records = await locals.pb.collection('statuses').getFullList({
-          filter: `project = "${project.id}" && (id = "${statusId}" || key = "${statusId}")`
+          filter: locals.pb.filter(
+            'project = {:projectId} && (id = {:statusId} || key = {:statusId})',
+            { projectId: project.id, statusId }
+          )
         })
         if (records.length > 0) {
           existingStatus = records[0]
@@ -536,7 +542,10 @@ export const actions: Actions = {
         // Disassociate any local tasks currently assigned to this status
         try {
           const tasksInStatus = await locals.pb.collection('tasks').getFullList({
-            filter: `project = "${project.id}" && status = "${existingStatus.id}"`
+            filter: locals.pb.filter(
+              'project = {:projectId} && status = {:statusId}',
+              { projectId: project.id, statusId: existingStatus.id }
+            )
           })
           for (const task of tasksInStatus) {
             await locals.pb.collection('tasks').update(task.id, {
@@ -590,7 +599,7 @@ export const actions: Actions = {
 
     try {
       const statusRecords = await locals.pb.collection('statuses').getFullList({
-        filter: `project = "${project.id}"`,
+        filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
         sort: 'order'
       })
 
@@ -674,7 +683,7 @@ export const actions: Actions = {
         let projectStatuses: Status[] = []
         try {
           const statusRecords = await locals.pb.collection('statuses').getFullList({
-            filter: `project = "${project.id}"`,
+            filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
             sort: 'order'
           })
           projectStatuses = statusRecords.map((r) => ({
@@ -720,8 +729,13 @@ export const actions: Actions = {
       }
 
       const filter = statusId
-        ? `project = "${project.id}" && status = "${statusId}"`
-        : `project = "${project.id}" && status = null`
+        ? locals.pb.filter('project = {:projectId} && status = {:statusId}', {
+            projectId: project.id,
+            statusId
+          })
+        : locals.pb.filter('project = {:projectId} && status = null', {
+            projectId: project.id
+          })
 
       const siblingTasks = await locals.pb.collection('tasks').getFullList({
         filter,

@@ -36,7 +36,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
       try {
         const localStatusRecords = await locals.pb.collection('statuses').getFullList({
-          filter: `project = "${project.id}"`,
+          filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
           sort: 'order'
         })
         if (localStatusRecords.length > 0) {
@@ -68,14 +68,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       }
     } else {
       const statusRecords = await locals.pb.collection('statuses').getFullList({
-        filter: `project = "${project.id}"`,
+        filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
         sort: 'order'
       })
       statuses = structuredClone(statusRecords) as unknown as Status[]
 
       try {
         const taskRecords = await locals.pb.collection('tasks').getFullList({
-          filter: `project = "${project.id}"`,
+          filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
           sort: 'order,number',
           expand: 'assigned'
         })

@@ -26,8 +26,8 @@ export async function generateProjectSlug(
   while (true) {
     try {
       const filter = excludeProjectId
-        ? `slug = "${slug}" && id != "${excludeProjectId}"`
-        : `slug = "${slug}"`
+        ? pb.filter('slug = {:slug} && id != {:excludeProjectId}', { slug, excludeProjectId })
+        : pb.filter('slug = {:slug}', { slug })
       const existing = await pb.collection('projects').getFirstListItem(filter)
       if (existing) {
         slug = `${baseSlug}-${counter}`
@@ -56,8 +56,12 @@ export async function generateTaskSlug(
   while (true) {
     try {
       const filter = excludeTaskId
-        ? `project = "${projectId}" && slug = "${slug}" && id != "${excludeTaskId}"`
-        : `project = "${projectId}" && slug = "${slug}"`
+        ? pb.filter('project = {:projectId} && slug = {:slug} && id != {:excludeTaskId}', {
+            projectId,
+            slug,
+            excludeTaskId
+          })
+        : pb.filter('project = {:projectId} && slug = {:slug}', { projectId, slug })
       const existing = await pb.collection('tasks').getFirstListItem(filter)
       if (existing) {
         slug = `${baseSlug}-${counter}`
@@ -79,7 +83,9 @@ export async function getProjectByIdOrSlug(
   options?: RecordOptions
 ): Promise<RecordModel> {
   try {
-    return await pb.collection('projects').getFirstListItem(`slug = "${identifier}"`, options)
+    return await pb
+      .collection('projects')
+      .getFirstListItem(pb.filter('slug = {:identifier}', { identifier }), options)
   } catch {
     return await pb.collection('projects').getOne(identifier, options)
   }
@@ -91,7 +97,7 @@ export async function getProjectByShareToken(
   options?: RecordOptions
 ): Promise<RecordModel> {
   return await pb.collection('projects').getFirstListItem(
-    `share_token = "${shareToken}" && privacy = "public"`,
+    pb.filter('share_token = {:shareToken} && privacy = "public"', { shareToken }),
     options
   )
 }
@@ -107,7 +113,10 @@ export async function getTaskByIdOrSlug(
   if (isNumeric) {
     try {
       return await pb.collection('tasks').getFirstListItem(
-        `project = "${projectId}" && number = ${parseInt(trimmed, 10)}`,
+        pb.filter('project = {:projectId} && number = {:number}', {
+          projectId,
+          number: parseInt(trimmed, 10)
+        }),
         options
       )
     } catch {
@@ -117,7 +126,7 @@ export async function getTaskByIdOrSlug(
 
   try {
     return await pb.collection('tasks').getFirstListItem(
-      `project = "${projectId}" && slug = "${trimmed}"`,
+      pb.filter('project = {:projectId} && slug = {:trimmed}', { projectId, trimmed }),
       options
     )
   } catch {

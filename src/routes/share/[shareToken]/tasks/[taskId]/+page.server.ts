@@ -45,7 +45,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       let statuses: Status[] = []
       try {
         const localStatusRecords = await locals.pb.collection('statuses').getFullList({
-          filter: `project = "${project.id}"`,
+          filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
           sort: 'order'
         })
         const providerStatuses = await fetchProviderStatuses(project, ownerId, decryptedToken, ownerEmail)
@@ -134,7 +134,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     let allProjectTasks: Task[] = []
     try {
       const records = await locals.pb.collection('tasks').getFullList({
-        filter: `project = "${project.id}"`,
+        filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
         sort: 'number'
       })
       allProjectTasks = structuredClone(records) as unknown as Task[]
@@ -159,7 +159,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     let statuses: Status[] = []
     try {
       const statusRecords = await locals.pb.collection('statuses').getFullList({
-        filter: `project = "${project.id}"`,
+        filter: locals.pb.filter('project = {:projectId}', { projectId: project.id }),
         sort: 'order'
       })
       statuses = structuredClone(statusRecords) as unknown as Status[]
