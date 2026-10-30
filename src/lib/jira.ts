@@ -214,10 +214,11 @@ export function parseJiraUrl(repoUrl?: string | null): { hostUrl: string; projec
 
     // Look for project key in common Jira URL paths:
     // /jira/software/projects/KEY/...
+    // /jira/software/c/projects/KEY/...
     // /projects/KEY/...
     // /browse/KEY
     const match =
-      pathname.match(/\/jira\/software\/projects\/([^/]+)/i) ||
+      pathname.match(/\/jira\/software\/(?:c\/)?projects\/([^/]+)/i) ||
       pathname.match(/\/projects\/([^/]+)/i) ||
       pathname.match(/\/browse\/([^/-]+)/i)
 
@@ -669,92 +670,91 @@ export async function searchJiraIssues(
 
   // 1. Try Jira Cloud enhanced search with pagination: POST /rest/api/3/search/jql
   for (let page = 0; page < maxPages; page++) {
-    try {
-      const body: Record<string, unknown> = {
-        jql,
-        maxResults: 100,
-        fields: ['*all']
-      }
+    const body: Record<string, unknown> = {
+      jql,
+      maxResults: 100,
+      fields: ['*all']
+    }
+    if (nextPageToken) {
+      body.nextPageToken = nextPageToken
+    }
+
+    let res = await fetch(`${apiBase}/rest/api/3/search/jql`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    })
+
+    // If POST is not allowed (HTTP 405), try GET /rest/api/3/search/jql
+    if (res.status === 405) {
+      let getUrl = `${apiBase}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=100&fields=*all`
       if (nextPageToken) {
-        body.nextPageToken = nextPageToken
+        getUrl += `&nextPageToken=${encodeURIComponent(nextPageToken)}`
+      }
+      res = await fetch(getUrl, { headers })
+    }
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        issues?: JiraIssueResponse[]
+        nextPageToken?: string
+        isLast?: boolean
+      }
+      if (Array.isArray(data.issues)) {
+        allIssues.push(...data.issues)
+      }
+      if (!data.nextPageToken || data.isLast || !data.issues || data.issues.length === 0) {
+        return allIssues
+      }
+      nextPageToken = data.nextPageToken
+      continue
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('Jira authentication failed. Please check your token and credentials.')
+    }
+
+    // If 404 on page 0, the instance does not support /rest/api/3/search/jql (e.g. Jira Data Center / Server)
+    if (page === 0 && res.status === 404) {
+      const legacyRes = await fetch(
+        `${apiBase}/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=100&fields=*all`,
+        { headers }
+      )
+
+      if (legacyRes.ok) {
+        const legacyData = (await legacyRes.json()) as { issues?: JiraIssueResponse[] }
+        return Array.isArray(legacyData.issues) ? legacyData.issues : []
       }
 
-      const postRes = await fetch(`${apiBase}/rest/api/3/search/jql`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body)
-      })
-
-      if (postRes.ok) {
-        const data = (await postRes.json()) as {
-          issues?: JiraIssueResponse[]
-          nextPageToken?: string
-          isLast?: boolean
-        }
-        if (Array.isArray(data.issues)) {
-          allIssues.push(...data.issues)
-        }
-        if (!data.nextPageToken || data.isLast || !data.issues || data.issues.length === 0) {
-          break
-        }
-        nextPageToken = data.nextPageToken
-        continue
-      }
-
-      if (postRes.status === 401 || postRes.status === 403) {
+      if (legacyRes.status === 401 || legacyRes.status === 403) {
         throw new Error('Jira authentication failed. Please check your token and credentials.')
       }
 
-      // Try GET /rest/api/3/search/jql if first POST fails
-      if (page === 0 && postRes.status !== 404 && postRes.status !== 410) {
-        const getRes = await fetch(
-          `${apiBase}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=100&fields=*all`,
-          { headers }
-        )
-        if (getRes.ok) {
-          const data = (await getRes.json()) as { issues?: JiraIssueResponse[] }
-          return Array.isArray(data.issues) ? data.issues : []
-        }
-        if (getRes.status === 401 || getRes.status === 403) {
-          throw new Error('Jira authentication failed. Please check your token and credentials.')
-        }
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message.includes('Jira authentication failed')) {
-        throw err
-      }
-      console.warn('Jira /rest/api/3/search/jql call failed for page', page, err)
-      break
+      const legacyErrData = (await legacyRes.json().catch(() => null)) as {
+        errorMessages?: string[]
+        errors?: Record<string, string>
+      } | null
+      const legacyMessage =
+        legacyErrData?.errorMessages?.join(', ') ||
+        Object.values(legacyErrData?.errors || {}).join(', ') ||
+        `Failed to fetch Jira issues (HTTP ${legacyRes.status})`
+      throw new Error(legacyMessage)
     }
-  }
 
-  if (allIssues.length > 0) {
-    return allIssues
-  }
-
-  // 2. Fallback to legacy endpoint for Jira Data Center / Server: /rest/api/2/search
-  const legacyRes = await fetch(
-    `${apiBase}/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=100&fields=*all`,
-    { headers }
-  )
-
-  if (!legacyRes.ok) {
-    if (legacyRes.status === 401 || legacyRes.status === 403) {
-      throw new Error('Jira authentication failed. Please check your token and credentials.')
-    }
-    const errData = (await legacyRes.json().catch(() => null)) as {
+    // For any other non-200 on Jira Cloud (such as 400 Bad Request due to invalid JQL or missing field),
+    // parse the error and throw it directly to avoid falling back to the deprecated /rest/api/2/search
+    const errData = (await res.json().catch(() => null)) as {
       errorMessages?: string[]
       errors?: Record<string, string>
     } | null
     const message =
       errData?.errorMessages?.join(', ') ||
       Object.values(errData?.errors || {}).join(', ') ||
-      `Failed to fetch Jira issues (HTTP ${legacyRes.status})`
+      `Failed to fetch Jira issues (HTTP ${res.status})`
     throw new Error(message)
   }
 
-  const legacyData = (await legacyRes.json()) as { issues?: JiraIssueResponse[] }
-  return Array.isArray(legacyData.issues) ? legacyData.issues : []
+  return allIssues
 }
 
 export async function fetchJiraIssues(
