@@ -31,6 +31,42 @@ function getEncryptionKey(): Buffer {
   return cachedKey
 }
 
+function getCandidateKeys(): Buffer[] {
+  const keys: Buffer[] = []
+  const seen = new Set<string>()
+
+  const addSecret = (secret?: string | null) => {
+    if (!secret || secret.trim() === '') return
+    const key = crypto.createHash('sha256').update(secret).digest()
+    const hex = key.toString('hex')
+    if (!seen.has(hex)) {
+      seen.add(hex)
+      keys.push(key)
+    }
+  }
+
+  // 1. Current primary key
+  try {
+    const primary = getEncryptionKey()
+    keys.push(primary)
+    seen.add(primary.toString('hex'))
+  } catch {
+    // If primary key isn't configured, fallbacks will be evaluated
+  }
+
+  // 2. Additional environment secrets and old keys
+  addSecret(process.env.TOKEN_ENCRYPTION_KEY)
+  addSecret(process.env.ENCRYPTION_KEY)
+  addSecret(process.env.OLD_TOKEN_ENCRYPTION_KEY)
+  addSecret(process.env.PREVIOUS_TOKEN_ENCRYPTION_KEY)
+  addSecret(process.env.POCKETBASE_SECRET)
+
+  // 3. Historical default insecure secret (for tokens encrypted before key enforcement)
+  addSecret(DEFAULT_INSECURE_SECRET)
+
+  return keys
+}
+
 export function assertEncryptionConfig(): void {
   if (building) return
 
@@ -76,13 +112,22 @@ export function decryptToken(value: string | null | undefined): string {
     const tag = Buffer.from(tagHex, 'hex')
     const encrypted = Buffer.from(encryptedHex, 'hex')
 
-    const key = getEncryptionKey()
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
-    decipher.setAuthTag(tag)
-    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()])
-    return decrypted.toString('utf8')
+    const candidateKeys = getCandidateKeys()
+    for (const key of candidateKeys) {
+      try {
+        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
+        decipher.setAuthTag(tag)
+        const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()])
+        return decrypted.toString('utf8')
+      } catch {
+        // Try next candidate key
+      }
+    }
+
+    console.warn('Failed to decrypt authentication token: no matching encryption key found.')
+    return ''
   } catch (err) {
-    console.error('Failed to decrypt authentication token:', err)
+    console.warn('Failed to decrypt authentication token:', err)
     return ''
   }
 }
