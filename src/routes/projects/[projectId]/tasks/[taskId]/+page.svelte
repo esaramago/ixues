@@ -12,7 +12,6 @@
   users={data.users}
   availableLabels={data.availableLabels}
   availableTasks={data.availableTasks}
-  readonly={data.isReadOnly}
   {form}
 />
 

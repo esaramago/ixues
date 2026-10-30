@@ -10,3 +10,8 @@
 
   --wa-color-surface-default: var(--wa-color-neutral-10);
 }
+
+
+wa-markdown ::slotted(*) {
+  margin-block-start: var(--wa-space-s);
+}

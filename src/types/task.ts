@@ -56,6 +56,12 @@ export function getPriorityVariant(
   }
 }
 
+export function getPriorityLabel(priority?: TaskPriority | string | null): string {
+  if (!priority) return ''
+  const option = PRIORITY_OPTIONS.find((p) => p.value === priority)
+  return option ? option.label : priority.charAt(0).toUpperCase() + priority.slice(1)
+}
+
 export const DEFAULT_LOCAL_LABELS = [
   'bug',
   'enhancement',
@@ -120,6 +126,65 @@ export function getRelationshipLabel(type: RelationshipType): string {
     default:
       return type
   }
+}
+
+export function getRelBadgeVariant(type: RelationshipType): 'neutral' | 'danger' | 'warning' {
+  switch (type) {
+    case 'blocked_by':
+      return 'danger'
+    case 'blocks':
+      return 'warning'
+    case 'duplicate_of':
+    case 'relates_to':
+    default:
+      return 'neutral'
+  }
+}
+
+export function getTaskStatus(statusIdOrKey?: string | null, statuses: Status[] = []): Status | undefined {
+  if (!statusIdOrKey) return undefined
+  return statuses.find(
+    (s) =>
+      s.id === statusIdOrKey ||
+      s.key === statusIdOrKey ||
+      s.name.toLowerCase() === statusIdOrKey.toLowerCase()
+  )
+}
+
+export function getTaskAssignedUser(
+  assigned?: string | null,
+  users: User[] = [],
+  expandedUser?: User
+): { name: string; email?: string } | undefined {
+  if (expandedUser) {
+    return {
+      name: expandedUser.name || expandedUser.email || expandedUser.id,
+      email: expandedUser.email
+    }
+  }
+  if (!assigned) return undefined
+  const found = users.find((u) => u.id === assigned || u.email === assigned)
+  if (found) {
+    return {
+      name: found.name || found.email || found.id,
+      email: found.email
+    }
+  }
+  return { name: assigned }
+}
+
+export function getOriginalTaskUrl(
+  task?: Pick<Task, 'id' | 'number' | 'url'> | null,
+  project?: { type?: string; repo_url?: string | null; provider?: string | null } | null
+): string | null {
+  if (task?.url) return task.url
+  if (!project || project.type !== 'sync' || !project.repo_url) return null
+  const identifier = task?.number || task?.id
+  if (!identifier) return null
+  const cleanRepoUrl = project.repo_url.replace(/\/+$/, '')
+  return project.provider === 'jira'
+    ? `${cleanRepoUrl}/browse/${identifier}`
+    : `${cleanRepoUrl}/issues/${identifier}`
 }
 
 export function isTaskAssignedToUser(task: Task, user?: User | null): boolean {
