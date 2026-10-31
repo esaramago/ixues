@@ -22,11 +22,13 @@
   import '@awesome.me/webawesome/dist/components/tab/tab.js'
   import '@awesome.me/webawesome/dist/components/tab-group/tab-group.js'
   import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js'
-  import '@awesome.me/webawesome/dist/components/markdown/markdown.js'
+  import WaMarkdown from '@awesome.me/webawesome/dist/components/markdown/markdown.js'
   import '@awesome.me/webawesome/dist/components/textarea/textarea.js'
   import '@awesome.me/webawesome/dist/components/checkbox/checkbox.js'
   import '@awesome.me/webawesome/dist/components/copy-button/copy-button.js'
   import Header from '@/components/Header.svelte'
+
+  WaMarkdown.getMarked().use({ breaks: true })
 
   let { children } = $props()
 </script>

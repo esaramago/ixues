@@ -1,4 +1,8 @@
 <script lang="ts">
+  import WaMarkdown from '@awesome.me/webawesome/dist/components/markdown/markdown.js'
+
+  WaMarkdown.getMarked().use({ breaks: true })
+
   interface Props {
     content?: string
     placeholder?: string
