@@ -1,8 +1,8 @@
 <script lang="ts">
   import ProjectForm from '@/components/ProjectForm.svelte'
-  import type { ActionData } from './$types'
+  import type { ActionData, PageData } from './$types'
 
-  let { form }: { form: ActionData } = $props()
+  let { data, form }: { data: PageData; form: ActionData } = $props()
 </script>
 
-<ProjectForm {form} />
+<ProjectForm userTokens={data.userTokens} {form} />

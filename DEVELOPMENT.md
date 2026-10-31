@@ -65,6 +65,7 @@ PocketBase manages the following core collections:
 - `projects`: Contains local and sync project definitions, slugs, repo URLs, encrypted tokens, `privacy` (`private` or `public`), and `share_token`.
 - `statuses`: Workflow columns per project (order, key, color, name).
 - `tasks`: Issues/tasks with title, description, priority (lowest to urgent), status, labels, relationships, and assigned user.
+- `user_tokens`: Stores encrypted personal access tokens for external providers (GitHub, Jira) at the user level, allowing synchronized projects to reuse them without re-entering tokens per project.
 - `users`: Authentication records managed by PocketBase auth.
 
 ### Project Privacy & Secret Share Links

@@ -1,7 +1,8 @@
 import type { PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import { fetchProviderProjectDescription } from '@/lib/providers'
-import { decryptToken, sanitizeProjects } from '@/lib/server/crypto'
+import { sanitizeProjects } from '@/lib/server/crypto'
+import { resolveProjectToken } from '@/lib/server/tokens'
 
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.user) {
@@ -21,7 +22,9 @@ export const load: PageServerLoad = async ({ locals }) => {
         if (project.type === 'sync' && !project.description && project.repo_url) {
           try {
             const rawRecord = records.find((r) => r.id === project.id)
-            const decryptedToken = decryptToken(rawRecord?.token)
+            const decryptedToken = rawRecord
+              ? await resolveProjectToken(locals.pb, rawRecord as unknown as Project, locals.user?.id)
+              : ''
             const desc = await fetchProviderProjectDescription(
               project,
               decryptedToken,

@@ -10,6 +10,7 @@ export interface Project {
 	repo_url?: string | null
 	token?: string | null
 	has_token?: boolean
+	user_token?: string | null
 	only_my_tasks?: boolean
 	privacy?: 'private' | 'public'
 	share_token?: string | null

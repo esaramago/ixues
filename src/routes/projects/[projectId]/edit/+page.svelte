@@ -5,4 +5,4 @@
   let { data, form }: { data: PageData; form: ActionData } = $props()
 </script>
 
-<ProjectForm project={data.project} {form} />
+<ProjectForm project={data.project} userTokens={data.userTokens} {form} />

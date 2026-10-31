@@ -16,7 +16,8 @@ import {
   formatGitHubStatusLabel,
   renameGitHubLabel
 } from '@/lib/github'
-import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
+import { sanitizeProject } from '@/lib/server/crypto'
+import { resolveProjectToken } from '@/lib/server/tokens'
 import { getProjectByIdOrSlug, slugify } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -44,7 +45,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     let syncError: string | null = null
 
     if (isSyncProject(project)) {
-      const decryptedToken = decryptToken(project.token)
+      const decryptedToken = await resolveProjectToken(locals.pb, project, locals.user.id)
       const ownerId = project.user
       const ownerEmail = locals.user.email
 
@@ -300,7 +301,7 @@ export const actions: Actions = {
 
       if (project.provider === 'github' && project.repo_url) {
         try {
-          const decryptedToken = decryptToken(project.token)
+          const decryptedToken = await resolveProjectToken(locals.pb, project, locals.user.id)
           await ensureGitHubLabelExists(
             project.repo_url,
             formatGitHubStatusLabel(name),
@@ -418,7 +419,7 @@ export const actions: Actions = {
       if (project.provider === 'github' && project.repo_url && name) {
         const oldLabelName = formatGitHubStatusLabel(existingStatus.name)
         const newLabelName = formatGitHubStatusLabel(name)
-        const decryptedToken = decryptToken(project.token)
+        const decryptedToken = await resolveProjectToken(locals.pb, project, locals.user.id)
 
         if (oldLabelName !== newLabelName) {
           try {
@@ -531,7 +532,7 @@ export const actions: Actions = {
 
         if (project.repo_url) {
           try {
-            const decryptedToken = decryptToken(project.token)
+            const decryptedToken = await resolveProjectToken(locals.pb, project, locals.user.id)
             const labelName = formatGitHubStatusLabel(existingStatus.name)
             await deleteGitHubLabel(project.repo_url, labelName, decryptedToken)
           } catch (err) {
@@ -679,7 +680,7 @@ export const actions: Actions = {
       }
 
       try {
-        const decryptedToken = decryptToken(project.token)
+        const decryptedToken = await resolveProjectToken(locals.pb, project, locals.user.id)
         let projectStatuses: Status[] = []
         try {
           const statusRecords = await locals.pb.collection('statuses').getFullList({

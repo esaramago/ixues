@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { building } from '$app/environment'
 import type { Project } from '@/types/project'
+import type { UserToken } from '@/types/token'
 
 const DEFAULT_INSECURE_SECRET = 'ixues-default-token-encryption-secret-key-32'
 const ALGORITHM = 'aes-256-gcm'
@@ -142,4 +143,16 @@ export function sanitizeProject(project: Project): Project {
 
 export function sanitizeProjects(projects: Project[]): Project[] {
   return projects.map((p) => sanitizeProject(p))
+}
+
+export function sanitizeUserToken(userToken: UserToken): UserToken {
+  return {
+    ...userToken,
+    has_token: Boolean(userToken.token),
+    token: null
+  }
+}
+
+export function sanitizeUserTokens(tokens: UserToken[]): UserToken[] {
+  return tokens.map((t) => sanitizeUserToken(t))
 }

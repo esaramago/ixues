@@ -16,7 +16,8 @@ import {
   fetchProviderStatuses,
   isSyncProject
 } from '@/lib/providers'
-import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
+import { sanitizeProject } from '@/lib/server/crypto'
+import { resolveProjectToken } from '@/lib/server/tokens'
 import { parseTaskFormData } from '@/lib/server/task-form'
 import { generateTaskSlug, getProjectByIdOrSlug } from '@/lib/slug'
 
@@ -34,7 +35,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
     }
 
     if (isSyncProject(project)) {
-      const decryptedToken = decryptToken(project.token)
+      const decryptedToken = await resolveProjectToken(locals.pb, project, locals.user.id)
       let statuses: Status[] = []
       try {
         const localStatusRecords = await locals.pb.collection('statuses').getFullList({
@@ -211,7 +212,7 @@ export const actions: Actions = {
       }
 
       try {
-        const decryptedToken = decryptToken(project.token)
+        const decryptedToken = await resolveProjectToken(locals.pb, project, locals.user.id)
         let projectStatuses: Status[] = []
         try {
           const statusRecords = await locals.pb.collection('statuses').getFullList({

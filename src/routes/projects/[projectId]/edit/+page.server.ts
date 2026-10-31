@@ -3,7 +3,8 @@ import { error, fail, redirect } from '@sveltejs/kit'
 import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import { fetchProviderProjectDescription, validateProviderRepoUrl } from '@/lib/providers'
-import { decryptToken, encryptToken, sanitizeProject } from '@/lib/server/crypto'
+import { encryptToken, sanitizeProject } from '@/lib/server/crypto'
+import { getUserTokens, resolveProjectToken } from '@/lib/server/tokens'
 import { generateProjectSlug, getProjectByIdOrSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -19,9 +20,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       throw error(403, 'Forbidden')
     }
 
+    const userTokens = await getUserTokens(locals.pb, locals.user.id)
+
     return {
       title: `Edit ${project.name} · Ixues`,
-      project: sanitizeProject(project)
+      project: sanitizeProject(project),
+      userTokens
     }
   } catch (err: unknown) {
     if (err && typeof err === 'object' && 'status' in err) {
@@ -54,6 +58,8 @@ export const actions: Actions = {
     const provider = (data.get('provider') as string)?.trim() || ''
     const repoUrl = (data.get('repoUrl') as string)?.trim() || ''
     const token = (data.get('token') as string)?.trim() || ''
+    const tokenSource = (data.get('tokenSource') as string)?.trim() || 'custom'
+    const userTokenId = (data.get('userTokenId') as string)?.trim() || null
     const removeToken = data.get('removeToken') === 'true'
     const onlyMyTasks = data.get('onlyMyTasks') === 'true' || data.get('onlyMyTasks') === 'on'
     const privacy: 'private' | 'public' = (data.get('privacy') as string)?.trim() === 'public' ? 'public' : 'private'
@@ -115,13 +121,20 @@ export const actions: Actions = {
     }
 
     let finalToken: string | null = null
+    let finalUserToken: string | null = null
     if (type === 'sync') {
-      if (token) {
-        finalToken = encryptToken(token)
-      } else if (removeToken) {
+      if (tokenSource === 'user') {
         finalToken = null
+        finalUserToken = userTokenId || null
       } else {
-        finalToken = project.token || null
+        finalUserToken = null
+        if (token) {
+          finalToken = encryptToken(token)
+        } else if (removeToken) {
+          finalToken = null
+        } else {
+          finalToken = project.token || null
+        }
       }
     }
 
@@ -130,7 +143,11 @@ export const actions: Actions = {
       let description = project.description || ''
       if (type === 'sync') {
         try {
-          const rawToken = token || (removeToken ? '' : decryptToken(project.token))
+          const rawToken = await resolveProjectToken(
+            locals.pb,
+            { ...project, provider, token: finalToken, user_token: finalUserToken },
+            locals.user.id
+          )
           const fetchedDesc = await fetchProviderProjectDescription(
             { ...project, name, type, provider, repo_url: repoUrl },
             rawToken,
@@ -165,6 +182,7 @@ export const actions: Actions = {
         provider: type === 'sync' ? provider : null,
         repo_url: type === 'sync' ? repoUrl : null,
         token: finalToken,
+        user_token: finalUserToken,
         only_my_tasks: onlyMyTasks,
         privacy,
         share_token: shareToken

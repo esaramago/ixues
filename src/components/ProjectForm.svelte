@@ -4,6 +4,7 @@
   import ConfirmDialog from '@/components/ConfirmDialog.svelte'
   import Grid from '@/components/Grid.svelte'
   import type { Project } from '@/types/project'
+  import type { UserToken } from '@/types/token'
 
   export interface ProjectFormData {
     error?: string
@@ -19,6 +20,7 @@
   interface Props {
     project?: Project | null
     form?: ProjectFormData | null
+    userTokens?: UserToken[]
     heading?: string
     subheading?: string
     action?: string
@@ -32,6 +34,7 @@
   let {
     project = null,
     form = null,
+    userTokens = [],
     heading,
     subheading,
     action,
@@ -73,6 +76,13 @@
   let prevKey = $state('')
   let isConfirmOpen = $state(false)
 
+  let matchingUserTokens = $derived(
+    userTokens.filter((t) => t.provider === selectedProvider && t.has_token)
+  )
+
+  let tokenSource = $state<'user' | 'custom'>('user')
+  let selectedUserTokenId = $state<string>('')
+
   $effect(() => {
     const currentKey = project?.id ?? 'new'
     if (currentKey !== prevKey) {
@@ -84,6 +94,25 @@
       token = ''
       onlyMyTasks = Boolean(project?.only_my_tasks)
       projectPrivacy = project?.privacy || 'private'
+
+      if (project?.user_token) {
+        tokenSource = 'user'
+        selectedUserTokenId = project.user_token
+      } else if (project?.has_token) {
+        tokenSource = 'custom'
+        selectedUserTokenId = ''
+      } else {
+        const available = userTokens.filter(
+          (t) => t.provider === (project?.provider || 'github') && t.has_token
+        )
+        if (available.length > 0) {
+          tokenSource = 'user'
+          selectedUserTokenId = available[0].id
+        } else {
+          tokenSource = 'custom'
+          selectedUserTokenId = ''
+        }
+      }
     }
     if (form?.name !== undefined) {
       projectName = form.name
@@ -118,6 +147,27 @@
 
   function handleProviderChange(event: Event) {
     selectedProvider = (event.target as HTMLInputElement).value
+    const available = userTokens.filter(
+      (t) => t.provider === selectedProvider && t.has_token
+    )
+    if (available.length > 0) {
+      tokenSource = 'user'
+      selectedUserTokenId = available[0].id
+    } else {
+      tokenSource = 'custom'
+      selectedUserTokenId = ''
+    }
+  }
+
+  function handleTokenSelectionChange(event: Event) {
+    const val = (event.target as HTMLInputElement).value
+    if (val.startsWith('user:')) {
+      tokenSource = 'user'
+      selectedUserTokenId = val.slice(5)
+    } else {
+      tokenSource = 'custom'
+      selectedUserTokenId = ''
+    }
   }
 
   function handleRepoUrlChange(event: Event) {
@@ -229,57 +279,100 @@
               required
             ></wa-input>
 
-            <wa-input
-              name="token"
-              type="password"
-              label="Authentication Token"
-              placeholder={project?.has_token
-                ? '•••••••••••••••• (Leave blank to keep current token)'
-                : (selectedProvider === 'jira'
-                  ? 'e.g. Jira API Token'
-                  : 'e.g. Personal Access Token (ghp_...)')}
-              value={token}
-              oninput={handleTokenChange}
-              password-toggle
-            >
-              {#if project?.has_token}
+            {#if matchingUserTokens.length > 0}
+              <wa-select
+                label="Authentication Token"
+                value={tokenSource === 'user' ? `user:${selectedUserTokenId}` : 'custom'}
+                onchange={handleTokenSelectionChange}
+              >
+                {#each matchingUserTokens as ut (ut.id)}
+                  <wa-option value={`user:${ut.id}`}>
+                    Use saved token ({ut.name || (ut.provider === 'github' ? 'GitHub' : 'Jira')})
+                  </wa-option>
+                {/each}
+                <wa-option value="custom">Custom token for this project</wa-option>
+              </wa-select>
+
+              <input type="hidden" name="tokenSource" value={tokenSource} />
+              <input type="hidden" name="userTokenId" value={tokenSource === 'user' ? selectedUserTokenId : ''} />
+
+              {#if tokenSource === 'custom'}
+                <wa-input
+                  name="token"
+                  type="password"
+                  label="Custom Authentication Token"
+                  placeholder={project?.has_token
+                    ? '•••••••••••••••• (Leave blank to keep current token)'
+                    : (selectedProvider === 'jira'
+                      ? 'e.g. Jira API Token'
+                      : 'e.g. Personal Access Token (ghp_...)')}
+                  value={token}
+                  oninput={handleTokenChange}
+                  password-toggle
+                >
+                  <span slot="hint">
+                    {#if selectedProvider === 'jira'}
+                      Enter your Jira API token (or email:token). Generate one at
+                      <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
+                        Atlassian API Tokens
+                      </a>.
+                    {:else}
+                      Personal access token for GitHub authentication. Generate one at
+                      <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
+                        GitHub Personal Access Tokens
+                      </a>.
+                    {/if}
+                  </span>
+                </wa-input>
+
+                {#if isEdit && project?.has_token}
+                  <wa-checkbox name="removeToken" value="true">
+                    Remove custom authentication token
+                  </wa-checkbox>
+                {/if}
+              {:else}
+                <small class="u-text-muted">
+                  Using your saved {selectedProvider === 'jira' ? 'Jira' : 'GitHub'} access token. Manage your tokens in
+                  <a href="/tokens">Access Tokens</a>.
+                </small>
+              {/if}
+            {:else}
+              <input type="hidden" name="tokenSource" value="custom" />
+              <wa-input
+                name="token"
+                type="password"
+                label="Authentication Token"
+                placeholder={project?.has_token
+                  ? '•••••••••••••••• (Leave blank to keep current token)'
+                  : (selectedProvider === 'jira'
+                    ? 'e.g. Jira API Token'
+                    : 'e.g. Personal Access Token (ghp_...)')}
+                value={token}
+                oninput={handleTokenChange}
+                password-toggle
+              >
                 <span slot="hint">
-                  A token is currently configured. Leave blank to keep it unchanged, or enter a new token to update it.
                   {#if selectedProvider === 'jira'}
-                    Generate one at
+                    Enter your Jira API token (or email:token). Generate one at
                     <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
                       Atlassian API Tokens
-                    </a>
-                    (required scopes: <code>read:jira-work</code>, <code>write:jira-work</code>; recommended: <code>read:jira-user</code>).
+                    </a>, or configure a reusable token in
+                    <a href="/tokens">Access Tokens</a>.
                   {:else}
-                    Generate one at
+                    Personal access token for GitHub authentication. Generate one at
                     <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
                       GitHub Personal Access Tokens
-                    </a>.
+                    </a>, or configure a reusable token in
+                    <a href="/tokens">Access Tokens</a>.
                   {/if}
                 </span>
-              {:else if selectedProvider === 'jira'}
-                <span slot="hint">
-                  Enter your Jira API token (or email:token). Generate one at
-                  <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
-                    Atlassian API Tokens
-                  </a>
-                  (required scopes: <code>read:jira-work</code>, <code>write:jira-work</code>; recommended: <code>read:jira-user</code>).
-                </span>
-              {:else}
-                <span slot="hint">
-                  Personal access token for GitHub authentication. Generate one at
-                  <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
-                    GitHub Personal Access Tokens
-                  </a>.
-                </span>
-              {/if}
-            </wa-input>
+              </wa-input>
 
-            {#if isEdit && project?.has_token}
-              <wa-checkbox name="removeToken" value="true">
-                Remove saved authentication token
-              </wa-checkbox>
+              {#if isEdit && project?.has_token}
+                <wa-checkbox name="removeToken" value="true">
+                  Remove saved authentication token
+                </wa-checkbox>
+              {/if}
             {/if}
           {/if}
 

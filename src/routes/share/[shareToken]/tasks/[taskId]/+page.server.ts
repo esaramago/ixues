@@ -16,7 +16,8 @@ import {
   fetchProviderStatuses,
   isSyncProject
 } from '@/lib/providers'
-import { decryptToken, sanitizeProject } from '@/lib/server/crypto'
+import { sanitizeProject } from '@/lib/server/crypto'
+import { resolveProjectToken } from '@/lib/server/tokens'
 import { getProjectByShareToken, getTaskByIdOrSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -38,7 +39,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
         throw error(400, 'Project repository URL is missing')
       }
 
-      const decryptedToken = decryptToken(project.token)
+      const decryptedToken = await resolveProjectToken(locals.pb, project, project.user)
       const ownerId = project.user
       const ownerEmail = (projectRecord.expand?.user as { email?: string } | undefined)?.email
 

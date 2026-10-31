@@ -4,6 +4,7 @@ import type { Actions, PageServerLoad } from './$types'
 import type { Project } from '@/types/project'
 import { fetchProviderProjectDescription, validateProviderRepoUrl } from '@/lib/providers'
 import { encryptToken } from '@/lib/server/crypto'
+import { getDecryptedUserToken, getUserTokens, resolveProjectToken } from '@/lib/server/tokens'
 import { generateProjectSlug } from '@/lib/slug'
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -11,8 +12,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw redirect(303, '/login')
 	}
 
+	const userTokens = await getUserTokens(locals.pb, locals.user.id)
+
 	return {
-		title: 'New project · Ixues'
+		title: 'New project · Ixues',
+		userTokens
 	}
 }
 
@@ -28,6 +32,8 @@ export const actions: Actions = {
 		const provider = (data.get('provider') as string)?.trim() || ''
 		const repoUrl = (data.get('repoUrl') as string)?.trim() || ''
 		const token = (data.get('token') as string)?.trim() || ''
+		const tokenSource = (data.get('tokenSource') as string)?.trim() || 'custom'
+		const userTokenId = (data.get('userTokenId') as string)?.trim() || null
 		const onlyMyTasks = data.get('onlyMyTasks') === 'true' || data.get('onlyMyTasks') === 'on'
 		const privacy: 'private' | 'public' = (data.get('privacy') as string)?.trim() === 'public' ? 'public' : 'private'
 
@@ -90,9 +96,25 @@ export const actions: Actions = {
 			let description: string | null = null
 			if (type === 'sync') {
 				try {
+					let effectiveToken = ''
+					if (tokenSource === 'custom' && token) {
+						effectiveToken = token
+					} else if (tokenSource === 'user' && userTokenId) {
+						effectiveToken = await resolveProjectToken(locals.pb, {
+							type: 'sync',
+							provider,
+							user_token: userTokenId,
+							token: null,
+							user: locals.user.id
+						})
+					} else {
+						effectiveToken =
+							token || (await getDecryptedUserToken(locals.pb, locals.user.id, provider))
+					}
+
 					description = await fetchProviderProjectDescription(
 						{ name, type, provider, repo_url: repoUrl, user: locals.user.id } as Project,
-						token,
+						effectiveToken,
 						locals.user.email
 					)
 				} catch (descErr) {
@@ -110,7 +132,8 @@ export const actions: Actions = {
 				type,
 				provider: type === 'sync' ? provider : null,
 				repo_url: type === 'sync' ? repoUrl : null,
-				token: type === 'sync' && token ? encryptToken(token) : null,
+				token: type === 'sync' && tokenSource === 'custom' && token ? encryptToken(token) : null,
+				user_token: type === 'sync' && tokenSource === 'user' ? userTokenId : null,
 				only_my_tasks: onlyMyTasks,
 				privacy,
 				share_token: shareToken,
