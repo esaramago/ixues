@@ -25,6 +25,7 @@
   import '@awesome.me/webawesome/dist/components/markdown/markdown.js'
   import '@awesome.me/webawesome/dist/components/textarea/textarea.js'
   import '@awesome.me/webawesome/dist/components/checkbox/checkbox.js'
+  import '@awesome.me/webawesome/dist/components/copy-button/copy-button.js'
   import Header from '@/components/Header.svelte'
 
   let { children } = $props()

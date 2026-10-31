@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from '$app/stores'
   import Back from '@/components/Back.svelte'
   import ConfirmDialog from '@/components/ConfirmDialog.svelte'
   import Grid from '@/components/Grid.svelte'
@@ -34,7 +35,8 @@
   }
 
   interface Props {
-    project: Pick<Project, 'id' | 'name'> & Partial<Pick<Project, 'type' | 'provider' | 'repo_url' | 'slug'>>
+    project: Pick<Project, 'id' | 'name'> &
+      Partial<Pick<Project, 'type' | 'provider' | 'repo_url' | 'slug' | 'privacy' | 'share_token'>>
     statuses: Status[]
     users?: User[]
     availableLabels?: TaskLabelItem[]
@@ -81,6 +83,11 @@
 
   let isSyncTask = $derived(project.type === 'sync' || !!task?.url)
   let originalTaskUrl = $derived(getOriginalTaskUrl(task, project))
+  let shareUrl = $derived(
+    isEdit && project.privacy === 'public' && project.share_token && (task?.number || task?.id)
+      ? `${$page.url.origin}/share/${project.share_token}/tasks/${task.number ?? task.id}`
+      : ''
+  )
 
   let defaultAssignedValue = $derived(
     defaultAssigned || (!task && users.length === 1 ? users[0].id : '')
@@ -209,18 +216,35 @@
       <Grid justify="space-between" align="center" wrap={true} gap="s">
         <Back href={resolvedCancelHref} title={resolvedHeading} />
 
-        {#if originalTaskUrl}
-          <wa-button
-            href={originalTaskUrl}
-            target="_blank"
-            rel="noreferrer"
-            variant="neutral"
-            size="s"
-          >
-            <wa-icon slot="start" family="brands" name={project.provider}></wa-icon>
-            Original Task
-            <wa-icon slot="end" name="arrow-up-right-from-square" variant="solid"></wa-icon>
-          </wa-button>
+        {#if shareUrl || originalTaskUrl}
+          <Grid align="center" gap="xs" wrap={true}>
+            {#if shareUrl}
+              <wa-button
+                href={shareUrl}
+                target="_blank"
+                rel="noreferrer"
+                variant="neutral"
+                size="s"
+              >
+                <wa-icon slot="start" name="arrow-up-right-from-square" variant="solid"></wa-icon>
+                View Share Link
+              </wa-button>
+            {/if}
+
+            {#if originalTaskUrl}
+              <wa-button
+                href={originalTaskUrl}
+                target="_blank"
+                rel="noreferrer"
+                variant="neutral"
+                size="s"
+              >
+                <wa-icon slot="start" family="brands" name={project.provider}></wa-icon>
+                Original Task
+                <wa-icon slot="end" name="arrow-up-right-from-square" variant="solid"></wa-icon>
+              </wa-button>
+            {/if}
+          </Grid>
         {/if}
       </Grid>
 
@@ -429,6 +453,18 @@
                 <small>No linked branches found for this issue.</small>
               {/if}
             </Grid>
+          {/if}
+
+          {#if shareUrl}
+            <wa-input
+              label="Share Link"
+              value={shareUrl}
+              readonly
+              hint="Anyone with this secret link has read-only access to this task."
+            >
+              <wa-icon slot="start" name="link" variant="solid"></wa-icon>
+              <wa-copy-button slot="end" value={shareUrl}></wa-copy-button>
+            </wa-input>
           {/if}
 
           {#if isEdit && showDelete}
