@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { deserialize } from '$app/forms'
   import { invalidateAll } from '$app/navigation'
   import Back from '@/components/Back.svelte'
   import ConfirmDialog from '@/components/ConfirmDialog.svelte'
@@ -40,6 +41,7 @@
   let deletingStatus = $state<Status | null>(null)
   let tasks = $state<TaskType[]>([])
   let onlyMyTasks = $state(false)
+  let boardError = $state<string | null>(null)
 
   let resolvedBackHref = $derived(backHref ?? '/')
   let resolveTaskHref = $derived(
@@ -172,6 +174,7 @@
     }
 
     // Optimistic UI update
+    boardError = null
     const updatedTask = { ...targetTask, status: targetStatusId || null }
     currentColumnTasks.splice(finalIndex, 0, updatedTask)
     const otherTasks = tasks.filter(
@@ -190,14 +193,24 @@
         body: formData
       })
 
-      if (!response.ok) {
+      const result = deserialize(await response.text())
+
+      if (!response.ok || result.type === 'failure' || result.type === 'error') {
         tasks = previousTasks
+        if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+          boardError = result.data.error
+        } else if (result.type === 'error' && result.error?.message) {
+          boardError = result.error.message
+        } else {
+          boardError = 'Failed to update task status.'
+        }
         return
       }
 
       await invalidateAll()
     } catch {
       tasks = previousTasks
+      boardError = 'Failed to update task status.'
     } finally {
       draggedTaskId = null
     }
@@ -322,10 +335,10 @@
     </wa-callout>
   {/if}
 
-  {#if form?.error && !('statusId' in form) && !('name' in form)}
+  {#if boardError || (form?.error && !('statusId' in form) && !('name' in form))}
     <wa-callout variant="danger">
       <wa-icon slot="icon" name="circle-exclamation" variant="solid"></wa-icon>
-      {form.error}
+      {boardError || form?.error}
     </wa-callout>
   {/if}
 

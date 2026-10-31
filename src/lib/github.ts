@@ -166,6 +166,28 @@ export function isClosedStatus(status: { name?: string; key?: string | null; id?
   )
 }
 
+export function isNativeGitHubStatus(
+  status: { name?: string; key?: string | null; id?: string } | string
+): boolean {
+  const raw =
+    typeof status === 'string'
+      ? status
+      : status.key || status.name || status.id || ''
+  const norm = raw.toLowerCase().trim()
+  return norm === 'open' || norm === 'closed'
+}
+
+function formatGitHubErrorMessage(status: number, apiMessage?: string, fallback?: string): string {
+  if (
+    status === 403 &&
+    apiMessage &&
+    apiMessage.toLowerCase().includes('resource not accessible by personal access token')
+  ) {
+    return `${apiMessage} (make sure your GitHub token has "Issues: Read and write" permission for this repository).`
+  }
+  return apiMessage || fallback || `GitHub API error (HTTP ${status})`
+}
+
 export function getDefaultGitHubStatuses(projectId: string, userId: string): Status[] {
   return [
     {
@@ -726,6 +748,7 @@ export async function updateGitHubIssueStatus(
   const matchedStatus = statuses ? matchStatusByNameOrKey(targetStatusId, statuses) : null
   const statusName = matchedStatus ? matchedStatus.name : targetStatusId
   const isClosed = matchedStatus ? isClosedStatus(matchedStatus) : targetStatusId === 'closed'
+  const isNative = isNativeGitHubStatus(matchedStatus || statusName)
   const newStatusLabel = formatGitHubStatusLabel(statusName)
 
   const existingLabels = (issue.labels || [])
@@ -733,7 +756,16 @@ export async function updateGitHubIssueStatus(
     .filter(Boolean)
 
   const nonStatusLabels = existingLabels.filter((label) => !isGitHubStatusLabel(label))
-  const updatedLabels = [...nonStatusLabels, newStatusLabel]
+  const updatedLabels = isNative ? nonStatusLabels : [...nonStatusLabels, newStatusLabel]
+
+  if (!isNative && matchedStatus?.color) {
+    await ensureGitHubLabelExists(
+      repoUrl,
+      newStatusLabel,
+      matchedStatus.color,
+      resolvedToken
+    ).catch(() => {})
+  }
 
   const patchRes = await fetch(issueUrl, {
     method: 'PATCH',
@@ -749,16 +781,13 @@ export async function updateGitHubIssueStatus(
 
   if (!patchRes.ok) {
     const errorData = (await patchRes.json().catch(() => null)) as { message?: string } | null
-    throw new Error(errorData?.message || `Failed to update GitHub issue status (HTTP ${patchRes.status})`)
-  }
-
-  if (matchedStatus?.color) {
-    ensureGitHubLabelExists(
-      repoUrl,
-      newStatusLabel,
-      matchedStatus.color,
-      resolvedToken
-    ).catch(() => {})
+    throw new Error(
+      formatGitHubErrorMessage(
+        patchRes.status,
+        errorData?.message,
+        `Failed to update GitHub issue status (HTTP ${patchRes.status})`
+      )
+    )
   }
 }
 
@@ -868,13 +897,16 @@ export async function updateGitHubIssue(
     const matchedStatus = statuses ? matchStatusByNameOrKey(updates.status, statuses) : null
     const statusName = matchedStatus ? matchedStatus.name : updates.status
     const isClosed = matchedStatus ? isClosedStatus(matchedStatus) : updates.status === 'closed'
+    const isNative = isNativeGitHubStatus(matchedStatus || statusName)
     state = isClosed ? 'closed' : 'open'
 
     const newStatusLabel = formatGitHubStatusLabel(statusName)
 
     if (finalLabels !== undefined) {
       finalLabels = finalLabels.filter((l) => !isGitHubStatusLabel(l))
-      finalLabels.push(newStatusLabel)
+      if (!isNative) {
+        finalLabels.push(newStatusLabel)
+      }
     } else {
       try {
         const getRes = await fetch(url, { headers: getGitHubHeaders(resolvedToken) })
@@ -882,13 +914,15 @@ export async function updateGitHubIssue(
           const current = (await getRes.json()) as GitHubIssueResponse
           const existing = (current.labels || []).map((l) => (typeof l === 'string' ? l : l.name || '')).filter(Boolean)
           finalLabels = existing.filter((l) => !isGitHubStatusLabel(l))
-          finalLabels.push(newStatusLabel)
+          if (!isNative) {
+            finalLabels.push(newStatusLabel)
+          }
         }
       } catch {}
     }
 
-    if (matchedStatus?.color) {
-      ensureGitHubLabelExists(
+    if (!isNative && matchedStatus?.color) {
+      await ensureGitHubLabelExists(
         repoUrl,
         newStatusLabel,
         matchedStatus.color,
@@ -914,7 +948,13 @@ export async function updateGitHubIssue(
 
   if (!response.ok) {
     const errorData = (await response.json().catch(() => null)) as { message?: string } | null
-    throw new Error(errorData?.message || `Failed to update GitHub issue (HTTP ${response.status})`)
+    throw new Error(
+      formatGitHubErrorMessage(
+        response.status,
+        errorData?.message,
+        `Failed to update GitHub issue (HTTP ${response.status})`
+      )
+    )
   }
 
   if (updates.relationships && updates.relationships.length > 0) {
