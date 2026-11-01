@@ -83,15 +83,19 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
       let availableLabels: TaskLabel[] = []
       let availableTasks: Task[] = []
       if (project.repo_url) {
-        try {
-          const [labels, allIssues] = await Promise.all([
-            fetchProviderLabels(project, decryptedToken, locals.user.email),
-            fetchProviderIssues(project, locals.user.id, decryptedToken, locals.user.email, statuses)
-          ])
-          availableLabels = labels
-          availableTasks = allIssues
-        } catch (err) {
-          console.error('Failed to fetch provider data:', err)
+        const [labelsResult, issuesResult] = await Promise.allSettled([
+          fetchProviderLabels(project, decryptedToken, locals.user.email),
+          fetchProviderIssues(project, locals.user.id, decryptedToken, locals.user.email, statuses)
+        ])
+        if (labelsResult.status === 'fulfilled') {
+          availableLabels = labelsResult.value
+        } else {
+          console.error('Failed to load provider labels:', labelsResult.reason)
+        }
+        if (issuesResult.status === 'fulfilled') {
+          availableTasks = issuesResult.value
+        } else {
+          console.error('Failed to load provider issues:', issuesResult.reason)
         }
       }
 

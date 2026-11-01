@@ -1,5 +1,12 @@
 import type { Status } from '@/types/status'
-import type { Task, TaskBranch, TaskLabel, TaskPriority, TaskRelationship } from '@/types/task'
+import {
+  TASK_PRIORITIES,
+  type Task,
+  type TaskBranch,
+  type TaskLabel,
+  type TaskPriority,
+  type TaskRelationship
+} from '@/types/task'
 import { getDeterministicColor, normalizeHexColor } from '@/lib/colors'
 import { slugify } from '@/lib/slug'
 
@@ -106,21 +113,30 @@ function getGitHubHeaders(customToken?: string | null): HeadersInit {
 function extractPriority(
   labels: Array<{ name?: string } | string>
 ): TaskPriority | null {
+  // Explicit "priority: <value>" labels take precedence over plain priority labels.
+  for (const label of labels) {
+    const name = typeof label === 'string' ? label : label.name || ''
+    const parsed = parseGitHubPriorityLabel(name)
+    if (parsed) return parsed
+  }
+
+  // Fallback for repositories that already use plain priority labels (e.g. "high", "p1").
   for (const label of labels) {
     const name = (typeof label === 'string' ? label : label.name || '').toLowerCase()
-    if (name.includes('urgent') || name.includes('critical') || name === 'p0') {
+    if (!name || isGitHubStatusLabel(name) || isGitHubPriorityLabel(name)) continue
+    if (/\b(urgent|critical)\b/.test(name) || name === 'p0') {
       return 'urgent'
     }
-    if (name.includes('high') || name === 'p1') {
+    if (/\bhigh\b/.test(name) || name === 'p1') {
       return 'high'
     }
-    if (name.includes('medium') || name === 'p2') {
+    if (/\bmedium\b/.test(name) || name === 'p2') {
       return 'medium'
     }
-    if (name.includes('lowest') || name === 'p4') {
+    if (/\blowest\b/.test(name) || name === 'p4') {
       return 'lowest'
     }
-    if (name.includes('low') || name === 'p3') {
+    if (/\blow\b/.test(name) || name === 'p3') {
       return 'low'
     }
   }
@@ -138,6 +154,29 @@ export function formatGitHubStatusLabel(statusName: string): string {
 export function parseGitHubStatusLabel(labelName: string): string | null {
   const match = labelName.trim().match(/^status:\s*(.+)$/i)
   return match ? match[1].trim() : null
+}
+
+export function isGitHubPriorityLabel(labelName: string): boolean {
+  return /^priority:\s*.+$/i.test(labelName.trim())
+}
+
+export function formatGitHubPriorityLabel(priority: TaskPriority | string): string {
+  return `priority: ${priority.trim().toLowerCase()}`
+}
+
+export function parseGitHubPriorityLabel(labelName: string): TaskPriority | null {
+  const match = labelName.trim().match(/^priority:\s*(.+)$/i)
+  if (!match) return null
+  const value = match[1].trim().toLowerCase()
+  return TASK_PRIORITIES.includes(value as TaskPriority) ? (value as TaskPriority) : null
+}
+
+const GITHUB_PRIORITY_LABEL_COLORS: Record<TaskPriority, string> = {
+  urgent: '#b42318',
+  high: '#d97706',
+  medium: '#2563eb',
+  low: '#15803d',
+  lowest: '#6b7280'
 }
 
 export function matchStatusByNameOrKey(
@@ -329,7 +368,9 @@ export function mapGitHubIssueToTask(
       const color = normalizeHexColor(rawColor) || getDeterministicColor(name)
       return { name, color }
     })
-    .filter((l) => Boolean(l.name) && !isGitHubStatusLabel(l.name))
+    .filter(
+      (l) => Boolean(l.name) && !isGitHubStatusLabel(l.name) && !isGitHubPriorityLabel(l.name)
+    )
 
   return {
     id: String(issue.number),
@@ -849,7 +890,12 @@ export async function fetchGitHubLabels(
     const data = (await response.json()) as Array<{ name?: string; color?: string }>
     if (Array.isArray(data)) {
       return data
-        .filter((l) => Boolean(l.name) && !isGitHubStatusLabel(l.name || ''))
+        .filter(
+          (l) =>
+            Boolean(l.name) &&
+            !isGitHubStatusLabel(l.name || '') &&
+            !isGitHubPriorityLabel(l.name || '')
+        )
         .map((l) => {
           const name = l.name || ''
           const color = normalizeHexColor(l.color) || getDeterministicColor(name)
@@ -863,6 +909,22 @@ export async function fetchGitHubLabels(
   return []
 }
 
+async function fetchGitHubIssueLabelNames(
+  issueUrl: string,
+  token: string
+): Promise<string[] | null> {
+  try {
+    const res = await fetch(issueUrl, { headers: getGitHubHeaders(token) })
+    if (!res.ok) return null
+    const issue = (await res.json()) as GitHubIssueResponse
+    return (issue.labels || [])
+      .map((l) => (typeof l === 'string' ? l : l.name || ''))
+      .filter(Boolean)
+  } catch {
+    return null
+  }
+}
+
 export async function updateGitHubIssue(
   repoUrl: string,
   issueNumber: number | string,
@@ -873,6 +935,7 @@ export async function updateGitHubIssue(
     state?: 'open' | 'closed'
     labels?: string[]
     relationships?: TaskRelationship[]
+    priority?: TaskPriority | null
   },
   token?: string | null,
   statuses?: Status[]
@@ -890,8 +953,20 @@ export async function updateGitHubIssue(
   const { owner, repo } = repoInfo
   const url = `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`
 
+  const managesLabels =
+    updates.labels !== undefined || Boolean(updates.status) || updates.priority !== undefined
+  const currentLabels = managesLabels
+    ? await fetchGitHubIssueLabelNames(url, resolvedToken)
+    : null
+
+  // Status and priority are stored as dedicated labels and are rewritten below,
+  // so they are stripped from the content labels first.
+  const baseLabels = updates.labels !== undefined ? updates.labels : currentLabels
+  let finalLabels: string[] | null = baseLabels
+    ? baseLabels.filter((l) => !isGitHubStatusLabel(l) && !isGitHubPriorityLabel(l))
+    : null
+
   let state = updates.state
-  let finalLabels = updates.labels ? [...updates.labels] : undefined
 
   if (updates.status) {
     const matchedStatus = statuses ? matchStatusByNameOrKey(updates.status, statuses) : null
@@ -902,23 +977,8 @@ export async function updateGitHubIssue(
 
     const newStatusLabel = formatGitHubStatusLabel(statusName)
 
-    if (finalLabels !== undefined) {
-      finalLabels = finalLabels.filter((l) => !isGitHubStatusLabel(l))
-      if (!isNative) {
-        finalLabels.push(newStatusLabel)
-      }
-    } else {
-      try {
-        const getRes = await fetch(url, { headers: getGitHubHeaders(resolvedToken) })
-        if (getRes.ok) {
-          const current = (await getRes.json()) as GitHubIssueResponse
-          const existing = (current.labels || []).map((l) => (typeof l === 'string' ? l : l.name || '')).filter(Boolean)
-          finalLabels = existing.filter((l) => !isGitHubStatusLabel(l))
-          if (!isNative) {
-            finalLabels.push(newStatusLabel)
-          }
-        }
-      } catch {}
+    if (finalLabels && !isNative) {
+      finalLabels.push(newStatusLabel)
     }
 
     if (!isNative && matchedStatus?.color) {
@@ -929,13 +989,32 @@ export async function updateGitHubIssue(
         resolvedToken
       ).catch(() => {})
     }
+  } else if (finalLabels) {
+    const existingStatus = currentLabels?.find(isGitHubStatusLabel)
+    if (existingStatus) finalLabels.push(existingStatus)
+  }
+
+  if (updates.priority !== undefined) {
+    if (updates.priority && finalLabels) {
+      const priorityLabel = formatGitHubPriorityLabel(updates.priority)
+      finalLabels.push(priorityLabel)
+      await ensureGitHubLabelExists(
+        repoUrl,
+        priorityLabel,
+        GITHUB_PRIORITY_LABEL_COLORS[updates.priority],
+        resolvedToken
+      ).catch(() => {})
+    }
+  } else if (finalLabels) {
+    const existingPriority = currentLabels?.find(isGitHubPriorityLabel)
+    if (existingPriority) finalLabels.push(existingPriority)
   }
 
   const patchBody: Record<string, unknown> = {}
   if (updates.title !== undefined) patchBody.title = updates.title
   if (updates.body !== undefined) patchBody.body = updates.body
   if (state !== undefined) patchBody.state = state
-  if (finalLabels !== undefined) patchBody.labels = finalLabels
+  if (finalLabels !== null) patchBody.labels = finalLabels
 
   const response = await fetch(url, {
     method: 'PATCH',
@@ -985,6 +1064,7 @@ export async function createGitHubIssue(
     body?: string
     status?: string
     labels?: string[]
+    priority?: TaskPriority | null
   },
   projectId: string,
   userId: string,
@@ -1004,8 +1084,21 @@ export async function createGitHubIssue(
   const { owner, repo } = repoInfo
   const url = `https://api.github.com/repos/${owner}/${repo}/issues`
 
-  const payloadLabels = [...(data.labels || [])]
+  const payloadLabels = (data.labels || []).filter(
+    (l) => !isGitHubStatusLabel(l) && !isGitHubPriorityLabel(l)
+  )
   let isClosed = false
+
+  if (data.priority) {
+    const priorityLabel = formatGitHubPriorityLabel(data.priority)
+    payloadLabels.push(priorityLabel)
+    await ensureGitHubLabelExists(
+      repoUrl,
+      priorityLabel,
+      GITHUB_PRIORITY_LABEL_COLORS[data.priority],
+      resolvedToken
+    ).catch(() => {})
+  }
 
   if (data.status) {
     const matchedStatus = statuses ? matchStatusByNameOrKey(data.status, statuses) : null

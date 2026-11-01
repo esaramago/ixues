@@ -93,7 +93,8 @@ export const githubAdapter: ProviderAdapter = {
         title: data.title,
         body: data.body,
         status: data.status,
-        labels: data.labels
+        labels: data.labels,
+        priority: data.priority
       },
       project.id,
       userId,
@@ -130,7 +131,8 @@ export const githubAdapter: ProviderAdapter = {
         body: updates.body,
         status: updates.status,
         labels: updates.labels,
-        relationships: updates.relationships
+        relationships: updates.relationships,
+        priority: updates.priority
       },
       token,
       statuses
