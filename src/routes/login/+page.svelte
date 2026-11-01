@@ -21,23 +21,27 @@
       <form method="POST">
         <Grid direction="column" gap="l">
           <Grid direction="column" gap="s">
-            <wa-input
-              name="email"
-              type="email"
-              label="Email"
-              placeholder="you@example.com"
-              value={form?.email ?? ''}
-              required
-            ></wa-input>
+            <Grid direction="column" gap="none">
+              <label for="email">Email</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="you@example.com"
+                value={form?.email ?? ''}
+                required
+              />
+            </Grid>
 
-            <wa-input
-              name="password"
-              type="password"
-              label="Password"
-              placeholder="••••••••"
-              password-toggle
-              required
-            ></wa-input>
+            <Grid direction="column" gap="none">
+              <label for="password">Password</label>
+              <input
+                name="password"
+                type="password"
+                placeholder="••••••••"
+                required
+              />
+            </Grid>
           </Grid>
 
           <wa-button type="submit" variant="brand">Sign In</wa-button>
