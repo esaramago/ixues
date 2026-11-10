@@ -6,6 +6,7 @@
   import Grid from '@/components/Grid.svelte'
   import StatusForm from '@/components/StatusForm.svelte'
   import Task from '@/components/Task.svelte'
+  import { onlySelf } from '@/lib/events'
   import type { Project } from '@/types/project'
   import type { Status } from '@/types/status'
   import { isTaskAssignedToUser, type Task as TaskType } from '@/types/task'
@@ -51,7 +52,7 @@
   function canDeleteStatus(status: Status): boolean {
     if (isReadOnly) return false
     if (project.type === 'local') return true
-    if (project.provider === 'github') {
+    if (project.provider === 'github' || project.provider === 'codeberg') {
       const key = (status.key || status.id || '').toLowerCase()
       const name = (status.name || '').toLowerCase()
       return key !== 'open' && key !== 'closed' && name !== 'open' && name !== 'closed'
@@ -305,7 +306,7 @@
               View Share Link
             </wa-dropdown-item>
           {/if}
-          {#if project.type === 'local' || project.provider === 'github'}
+          {#if project.type === 'local' || project.provider === 'github' || project.provider === 'codeberg'}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <wa-dropdown-item
@@ -553,7 +554,7 @@
   <wa-dialog
     label="New Status"
     open={isCreateDialogOpen}
-    onwa-after-hide={() => (isCreateDialogOpen = false)}
+    onwa-after-hide={onlySelf(() => (isCreateDialogOpen = false))}
   >
     <StatusForm
       defaultOrder={statuses.length}
@@ -566,14 +567,14 @@
   <wa-dialog
     label="Edit Status"
     open={!!editingStatus}
-    onwa-after-hide={() => (editingStatus = null)}
+    onwa-after-hide={onlySelf(() => (editingStatus = null))}
   >
     {#if editingStatus}
       <StatusForm
         status={editingStatus}
         defaultOrder={editingStatus.order}
         {form}
-        isSync={project.type === 'sync' && project.provider !== 'github'}
+        isSync={project.type === 'sync' && project.provider !== 'github' && project.provider !== 'codeberg'}
         oncancel={() => (editingStatus = null)}
         onsuccess={() => (editingStatus = null)}
       />

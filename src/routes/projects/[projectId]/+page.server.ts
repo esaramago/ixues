@@ -16,6 +16,12 @@ import {
   formatGitHubStatusLabel,
   renameGitHubLabel
 } from '@/lib/github'
+import {
+  deleteCodebergLabel,
+  ensureCodebergLabelExists,
+  formatCodebergStatusLabel,
+  renameCodebergLabel
+} from '@/lib/codeberg'
 import { sanitizeProject } from '@/lib/server/crypto'
 import { resolveProjectToken } from '@/lib/server/tokens'
 import { getProjectByIdOrSlug, slugify } from '@/lib/slug'
@@ -110,9 +116,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
             const filteredRecords: typeof localStatusRecords = []
             for (const r of currentStatusRecords) {
               const rKey = r.key || r.id
-              // Keep native open/closed statuses for GitHub
+              // Keep native open/closed statuses for GitHub and Codeberg
               if (
-                project.provider === 'github' &&
+                (project.provider === 'github' || project.provider === 'codeberg') &&
                 (rKey === 'open' || rKey === 'closed' || r.name.toLowerCase() === 'open' || r.name.toLowerCase() === 'closed')
               ) {
                 filteredRecords.push(r)
@@ -259,7 +265,7 @@ export const actions: Actions = {
     const orderStr = (data.get('order') as string)?.trim()
     const color = (data.get('color') as string)?.trim() || null
 
-    if (project.type === 'sync' && project.provider !== 'github') {
+    if (project.type === 'sync' && project.provider !== 'github' && project.provider !== 'codeberg') {
       return fail(400, {
         error: 'Statuses cannot be created for this synchronized project.',
         name,
@@ -310,6 +316,18 @@ export const actions: Actions = {
           )
         } catch (err) {
           console.error('Failed to create GitHub status label:', err)
+        }
+      } else if (project.provider === 'codeberg' && project.repo_url) {
+        try {
+          const decryptedToken = await resolveProjectToken(locals.pb, project, locals.user.id)
+          await ensureCodebergLabelExists(
+            project.repo_url,
+            formatCodebergStatusLabel(name),
+            color,
+            decryptedToken
+          )
+        } catch (err) {
+          console.error('Failed to create Codeberg status label:', err)
         }
       }
     } catch (err: unknown) {
@@ -362,7 +380,7 @@ export const actions: Actions = {
       })
     }
 
-    if (!name && (project.type === 'local' || project.provider === 'github')) {
+    if (!name && (project.type === 'local' || project.provider === 'github' || project.provider === 'codeberg')) {
       return fail(400, {
         error: 'Status name is required.',
         statusId,
@@ -410,7 +428,7 @@ export const actions: Actions = {
       if (name) {
         updatePayload.name = name
       }
-      if (name && project.provider === 'github') {
+      if (name && (project.provider === 'github' || project.provider === 'codeberg')) {
         updatePayload.key = slugify(name)
       }
 
@@ -436,6 +454,33 @@ export const actions: Actions = {
         } else if (color && color !== existingStatus.color) {
           try {
             await ensureGitHubLabelExists(
+              project.repo_url,
+              newLabelName,
+              color,
+              decryptedToken
+            )
+          } catch {}
+        }
+      } else if (project.provider === 'codeberg' && project.repo_url && name) {
+        const oldLabelName = formatCodebergStatusLabel(existingStatus.name)
+        const newLabelName = formatCodebergStatusLabel(name)
+        const decryptedToken = await resolveProjectToken(locals.pb, project, locals.user.id)
+
+        if (oldLabelName !== newLabelName) {
+          try {
+            await renameCodebergLabel(
+              project.repo_url,
+              oldLabelName,
+              newLabelName,
+              color,
+              decryptedToken
+            )
+          } catch (err) {
+            console.error('Failed to rename Codeberg label:', err)
+          }
+        } else if (color && color !== existingStatus.color) {
+          try {
+            await ensureCodebergLabelExists(
               project.repo_url,
               newLabelName,
               color,
@@ -511,7 +556,7 @@ export const actions: Actions = {
       }
 
       if (project.type === 'sync') {
-        if (project.provider !== 'github') {
+        if (project.provider !== 'github' && project.provider !== 'codeberg') {
           return fail(400, {
             error: 'Statuses cannot be deleted for this synchronized project.'
           })
@@ -526,17 +571,25 @@ export const actions: Actions = {
           statusName === 'closed'
         ) {
           return fail(400, {
-            error: 'Native GitHub statuses (Open/Closed) cannot be deleted.'
+            error: `Native ${project.provider === 'github' ? 'GitHub' : 'Codeberg'} statuses (Open/Closed) cannot be deleted.`
           })
         }
 
-        if (project.repo_url) {
+        if (project.provider === 'github' && project.repo_url) {
           try {
             const decryptedToken = await resolveProjectToken(locals.pb, project, locals.user.id)
             const labelName = formatGitHubStatusLabel(existingStatus.name)
             await deleteGitHubLabel(project.repo_url, labelName, decryptedToken)
           } catch (err) {
             console.error('Failed to delete GitHub label:', err)
+          }
+        } else if (project.provider === 'codeberg' && project.repo_url) {
+          try {
+            const decryptedToken = await resolveProjectToken(locals.pb, project, locals.user.id)
+            const labelName = formatCodebergStatusLabel(existingStatus.name)
+            await deleteCodebergLabel(project.repo_url, labelName, decryptedToken)
+          } catch (err) {
+            console.error('Failed to delete Codeberg label:', err)
           }
         }
       } else {

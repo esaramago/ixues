@@ -9,12 +9,14 @@ import {
   type TaskLabel
 } from '@/types/task'
 import type { User } from '@/types/user'
+import { parseCodebergRepo } from '@/lib/codeberg'
 import {
   deleteProviderIssue,
   fetchProviderIssue,
   fetchProviderIssues,
   fetchProviderLabels,
   fetchProviderStatuses,
+  fetchProviderUsers,
   isSyncProject,
   updateProviderIssue
 } from '@/lib/providers'
@@ -62,7 +64,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
         if (localStatusRecords.length > 0) {
           const validRecords = localStatusRecords.filter((r) => {
             const rKey = r.key || r.id
-            if (project.provider === 'github' && (rKey === 'open' || rKey === 'closed')) return true
+            if ((project.provider === 'github' || project.provider === 'codeberg') && (rKey === 'open' || rKey === 'closed')) return true
             if (providerStatuses.length === 0) return true
             return providerStatuses.some((ps) => {
               const norm = (s: string) => s.toLowerCase().replace(/[\s\-_:]+/g, '')
@@ -104,14 +106,15 @@ export const load: PageServerLoad = async ({ params, locals }) => {
         throw error(404, 'Issue not found')
       }
 
-      const users: User[] = task.expand?.assigned ? [task.expand.assigned] : []
+      let users: User[] = task.expand?.assigned ? [task.expand.assigned] : []
 
       let availableLabels: TaskLabel[] = []
       let availableTasks: Task[] = []
       if (project.repo_url) {
-        const [labelsResult, issuesResult] = await Promise.allSettled([
+        const [labelsResult, issuesResult, usersResult] = await Promise.allSettled([
           fetchProviderLabels(project, decryptedToken, ownerEmail),
-          fetchProviderIssues(project, ownerId, decryptedToken, ownerEmail, statuses)
+          fetchProviderIssues(project, ownerId, decryptedToken, ownerEmail, statuses),
+          fetchProviderUsers(project, decryptedToken, ownerEmail)
         ])
         if (labelsResult.status === 'fulfilled') {
           availableLabels = labelsResult.value
@@ -124,6 +127,33 @@ export const load: PageServerLoad = async ({ params, locals }) => {
           )
         } else {
           console.error('Failed to load provider issues:', issuesResult.reason)
+        }
+        if (usersResult.status === 'fulfilled') {
+          const fetchedUsers = usersResult.value
+          for (const u of fetchedUsers) {
+            if (!users.some((existing) => existing.id === u.id)) {
+              users.push(u)
+            }
+          }
+        }
+      }
+
+      const currentUser = locals.user
+      if (users.length === 0 && currentUser) {
+        let fallbackUsername = currentUser.username || ''
+        if (!fallbackUsername && project.repo_url) {
+          const cb = parseCodebergRepo(project.repo_url)
+          if (cb) fallbackUsername = cb.owner
+        }
+        if (fallbackUsername) {
+          users = [
+            {
+              id: fallbackUsername,
+              name: currentUser.name || fallbackUsername,
+              username: fallbackUsername,
+              email: currentUser.email
+            }
+          ]
         }
       }
 
@@ -232,7 +262,8 @@ export const actions: Actions = {
     }
 
     const data = await request.formData()
-    const { title, description, priority, status, assigned, labels, relationships } = parseTaskFormData(data)
+    const { title, description, priority, status, assigned, labels, relationships, branches } =
+      parseTaskFormData(data)
 
     if (!title) {
       return fail(400, {
@@ -243,7 +274,8 @@ export const actions: Actions = {
         status,
         assigned,
         labels,
-        relationships
+        relationships,
+        branches
       })
     }
 
@@ -257,7 +289,8 @@ export const actions: Actions = {
           status,
           assigned,
           labels,
-          relationships
+          relationships,
+          branches
         })
       }
 
@@ -290,7 +323,8 @@ export const actions: Actions = {
             status,
             labels,
             relationships,
-            priority
+            priority,
+            assigned
           },
           decryptedToken,
           locals.user.email,
@@ -306,7 +340,8 @@ export const actions: Actions = {
           status,
           assigned,
           labels,
-          relationships
+          relationships,
+          branches
         })
       }
 
@@ -332,7 +367,8 @@ export const actions: Actions = {
         status: status || null,
         assigned: assigned || null,
         labels,
-        relationships
+        relationships,
+        branches
       })
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'status' in err && (err as { status?: number }).status === 404) {
@@ -347,7 +383,8 @@ export const actions: Actions = {
         status,
         assigned,
         labels,
-        relationships
+        relationships,
+        branches
       })
     }
 

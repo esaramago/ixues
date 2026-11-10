@@ -109,7 +109,7 @@ export async function saveUserToken(
   const payload: Record<string, unknown> = {
     provider: normProvider,
     token: encrypted,
-    name: name?.trim() || (normProvider === 'github' ? 'GitHub' : 'Jira'),
+    name: name?.trim() || (normProvider === 'github' ? 'GitHub' : normProvider === 'codeberg' ? 'Codeberg' : 'Jira'),
     user: userId
   }
 

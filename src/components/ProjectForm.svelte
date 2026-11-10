@@ -258,6 +258,10 @@
                 <wa-icon slot="start" family="brands" name="github"></wa-icon>
                 GitHub
               </wa-option>
+              <wa-option value="codeberg">
+                <wa-icon slot="start" family="brands" name="codeberg"></wa-icon>
+                Codeberg
+              </wa-option>
               <wa-option value="jira">
                 <wa-icon slot="start" family="brands" name="jira"></wa-icon>
                 Jira
@@ -270,10 +274,14 @@
               label="Repository URL"
               placeholder={selectedProvider === 'jira'
                 ? 'https://your-domain.atlassian.net'
-                : 'https://github.com/user/repository'}
+                : selectedProvider === 'codeberg'
+                  ? 'https://codeberg.org/user/repository'
+                  : 'https://github.com/user/repository'}
               hint={selectedProvider === 'jira'
                 ? 'Enter your Jira domain URL'
-                : 'Enter the GitHub repository URL'}
+                : selectedProvider === 'codeberg'
+                  ? 'Enter the Codeberg repository URL'
+                  : 'Enter the GitHub repository URL'}
               value={repoUrl}
               oninput={handleRepoUrlChange}
               required
@@ -287,7 +295,7 @@
               >
                 {#each matchingUserTokens as ut (ut.id)}
                   <wa-option value={`user:${ut.id}`}>
-                    Use saved token ({ut.name || (ut.provider === 'github' ? 'GitHub' : 'Jira')})
+                    Use saved token ({ut.name || (ut.provider === 'github' ? 'GitHub' : ut.provider === 'codeberg' ? 'Codeberg' : 'Jira')})
                   </wa-option>
                 {/each}
                 <wa-option value="custom">Custom token for this project</wa-option>
@@ -305,7 +313,7 @@
                     ? '•••••••••••••••• (Leave blank to keep current token)'
                     : (selectedProvider === 'jira'
                       ? 'e.g. Jira API Token'
-                      : 'e.g. Personal Access Token (ghp_...)')}
+                      : 'e.g. Personal Access Token')}
                   value={token}
                   oninput={handleTokenChange}
                   password-toggle
@@ -315,6 +323,11 @@
                       Enter your Jira API token (or email:token). Generate one at
                       <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
                         Atlassian API Tokens
+                      </a>.
+                    {:else if selectedProvider === 'codeberg'}
+                      Personal access token for Codeberg authentication. Generate one at
+                      <a href="https://codeberg.org/user/settings/applications" target="_blank" rel="noreferrer">
+                        Codeberg Applications Settings
                       </a>.
                     {:else}
                       Personal access token for GitHub authentication. Generate one at
@@ -332,7 +345,7 @@
                 {/if}
               {:else}
                 <small class="u-text-muted">
-                  Using your saved {selectedProvider === 'jira' ? 'Jira' : 'GitHub'} access token. Manage your tokens in
+                  Using your saved {selectedProvider === 'jira' ? 'Jira' : selectedProvider === 'codeberg' ? 'Codeberg' : 'GitHub'} access token. Manage your tokens in
                   <a href="/tokens">Access Tokens</a>.
                 </small>
               {/if}
@@ -346,7 +359,7 @@
                   ? '•••••••••••••••• (Leave blank to keep current token)'
                   : (selectedProvider === 'jira'
                     ? 'e.g. Jira API Token'
-                    : 'e.g. Personal Access Token (ghp_...)')}
+                    : 'e.g. Personal Access Token')}
                 value={token}
                 oninput={handleTokenChange}
                 password-toggle
@@ -356,6 +369,12 @@
                     Enter your Jira API token (or email:token). Generate one at
                     <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
                       Atlassian API Tokens
+                    </a>, or configure a reusable token in
+                    <a href="/tokens">Access Tokens</a>.
+                  {:else if selectedProvider === 'codeberg'}
+                    Personal access token for Codeberg authentication. Generate one at
+                    <a href="https://codeberg.org/user/settings/applications" target="_blank" rel="noreferrer">
+                      Codeberg Applications Settings
                     </a>, or configure a reusable token in
                     <a href="/tokens">Access Tokens</a>.
                   {:else}

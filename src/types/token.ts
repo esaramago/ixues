@@ -1,4 +1,4 @@
-export type ProviderType = 'github' | 'jira'
+export type ProviderType = 'github' | 'jira' | 'codeberg'
 
 export interface UserToken {
   id: string

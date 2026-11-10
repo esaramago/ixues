@@ -1,6 +1,7 @@
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
 import type { Task, TaskLabel, TaskPriority, TaskRelationship } from '@/types/task'
+import type { User } from '@/types/user'
 
 export interface CreateIssueInput {
   title: string
@@ -8,6 +9,7 @@ export interface CreateIssueInput {
   status?: string
   labels?: string[]
   priority?: TaskPriority | null
+  assigned?: string | null
 }
 
 export interface UpdateIssueInput {
@@ -17,6 +19,7 @@ export interface UpdateIssueInput {
   labels?: string[]
   relationships?: TaskRelationship[]
   priority?: TaskPriority | null
+  assigned?: string | null
 }
 
 export interface ProviderAdapter {
@@ -57,6 +60,12 @@ export interface ProviderAdapter {
     token?: string | null,
     userEmail?: string | null
   ): Promise<TaskLabel[]>
+
+  getUsers?(
+    project: Project,
+    token?: string | null,
+    userEmail?: string | null
+  ): Promise<User[]>
 
   createIssue(
     project: Project,

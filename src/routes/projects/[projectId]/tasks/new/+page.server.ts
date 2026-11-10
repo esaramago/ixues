@@ -9,11 +9,13 @@ import {
   type TaskLabel
 } from '@/types/task'
 import type { User } from '@/types/user'
+import { parseCodebergRepo } from '@/lib/codeberg'
 import {
   createProviderIssue,
   fetchProviderIssues,
   fetchProviderLabels,
   fetchProviderStatuses,
+  fetchProviderUsers,
   isSyncProject
 } from '@/lib/providers'
 import { sanitizeProject } from '@/lib/server/crypto'
@@ -46,7 +48,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
         if (localStatusRecords.length > 0) {
           const validRecords = localStatusRecords.filter((r) => {
             const rKey = r.key || r.id
-            if (project.provider === 'github' && (rKey === 'open' || rKey === 'closed')) return true
+            if ((project.provider === 'github' || project.provider === 'codeberg') && (rKey === 'open' || rKey === 'closed')) return true
             if (providerStatuses.length === 0) return true
             return providerStatuses.some((ps) => {
               const norm = (s: string) => s.toLowerCase().replace(/[\s\-_:]+/g, '')
@@ -82,10 +84,12 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 
       let availableLabels: TaskLabel[] = []
       let availableTasks: Task[] = []
+      let users: User[] = []
       if (project.repo_url) {
-        const [labelsResult, issuesResult] = await Promise.allSettled([
+        const [labelsResult, issuesResult, usersResult] = await Promise.allSettled([
           fetchProviderLabels(project, decryptedToken, locals.user.email),
-          fetchProviderIssues(project, locals.user.id, decryptedToken, locals.user.email, statuses)
+          fetchProviderIssues(project, locals.user.id, decryptedToken, locals.user.email, statuses),
+          fetchProviderUsers(project, decryptedToken, locals.user.email)
         ])
         if (labelsResult.status === 'fulfilled') {
           availableLabels = labelsResult.value
@@ -97,15 +101,51 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
         } else {
           console.error('Failed to load provider issues:', issuesResult.reason)
         }
+        if (usersResult.status === 'fulfilled') {
+          users = usersResult.value
+        } else {
+          console.error('Failed to load provider users:', usersResult.reason)
+        }
       }
+
+      const currentUser = locals.user
+      if (users.length === 0 && currentUser) {
+        let fallbackUsername = currentUser.username || ''
+        if (!fallbackUsername && project.repo_url) {
+          const cb = parseCodebergRepo(project.repo_url)
+          if (cb) fallbackUsername = cb.owner
+        }
+        if (fallbackUsername) {
+          users = [
+            {
+              id: fallbackUsername,
+              name: currentUser.name || fallbackUsername,
+              username: fallbackUsername,
+              email: currentUser.email
+            }
+          ]
+        }
+      }
+
+      const clean = (s?: string | null) => (s || '').toLowerCase().replace(/[\s\-_.]+/g, '')
+      const matchedUser = currentUser
+        ? users.find(
+            (u) =>
+              (currentUser.username && clean(u.username) === clean(currentUser.username)) ||
+              (currentUser.email && clean(u.email) === clean(currentUser.email)) ||
+              (currentUser.name && (clean(u.name) === clean(currentUser.name) || clean(u.username) === clean(currentUser.name))) ||
+              (currentUser.id && u.id === currentUser.id)
+          )
+        : undefined
+      const defaultAssigned = matchedUser?.id || (users.length === 1 ? users[0].id : '')
 
       return {
         title: `New task · ${project.name} · Ixues`,
         project: sanitizeProject(project),
         statuses,
         defaultStatus,
-        defaultAssigned: '',
-        users: [],
+        defaultAssigned,
+        users,
         availableLabels,
         availableTasks
       }
@@ -186,7 +226,8 @@ export const actions: Actions = {
     }
 
     const data = await request.formData()
-    const { title, description, priority, status, assigned, labels, relationships } = parseTaskFormData(data)
+    const { title, description, priority, status, assigned, labels, relationships, branches } =
+      parseTaskFormData(data)
 
     if (!title) {
       return fail(400, {
@@ -197,7 +238,8 @@ export const actions: Actions = {
         status,
         assigned,
         labels,
-        relationships
+        relationships,
+        branches
       })
     }
 
@@ -211,7 +253,8 @@ export const actions: Actions = {
           status,
           assigned,
           labels,
-          relationships
+          relationships,
+          branches
         })
       }
 
@@ -242,7 +285,8 @@ export const actions: Actions = {
             body: description,
             status,
             labels,
-            priority
+            priority,
+            assigned
           },
           locals.user.id,
           decryptedToken,
@@ -259,7 +303,8 @@ export const actions: Actions = {
           status,
           assigned,
           labels,
-          relationships
+          relationships,
+          branches
         })
       }
 
@@ -331,6 +376,7 @@ export const actions: Actions = {
         assigned: assigned || null,
         labels,
         relationships,
+        branches,
         project: project.id,
         user: locals.user.id,
       })
@@ -351,7 +397,8 @@ export const actions: Actions = {
         status,
         assigned,
         labels,
-        relationships
+        relationships,
+        branches
       })
     }
 

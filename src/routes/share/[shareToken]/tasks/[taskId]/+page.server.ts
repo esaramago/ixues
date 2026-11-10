@@ -53,7 +53,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
         if (localStatusRecords.length > 0) {
           const validRecords = localStatusRecords.filter((r) => {
             const rKey = r.key || r.id
-            if (project.provider === 'github' && (rKey === 'open' || rKey === 'closed')) return true
+            if ((project.provider === 'github' || project.provider === 'codeberg') && (rKey === 'open' || rKey === 'closed')) return true
             if (providerStatuses.length === 0) return true
             return providerStatuses.some((ps) => {
               const norm = (s: string) => s.toLowerCase().replace(/[\s\-_:]+/g, '')

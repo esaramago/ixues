@@ -190,18 +190,23 @@ export function getOriginalTaskUrl(
 export function isTaskAssignedToUser(task: Task, user?: User | null): boolean {
   if (!user) return false
 
+  const clean = (s?: string | null) => (s || '').toLowerCase().replace(/[\s\-_.]+/g, '')
+
   const targetId = user.id?.toLowerCase()
   const targetEmail = user.email?.toLowerCase()
   const targetName = user.name?.toLowerCase()
   const targetUsername = user.username?.toLowerCase()
+  const cleanTargetName = clean(user.name)
+  const cleanTargetUsername = clean(user.username)
 
   if (task.assigned) {
     const assigned = task.assigned.toLowerCase()
+    const cleanAssigned = clean(task.assigned)
     if (
       assigned === targetId ||
       (targetEmail && assigned === targetEmail) ||
-      (targetName && assigned === targetName) ||
-      (targetUsername && assigned === targetUsername)
+      (targetName && (assigned === targetName || cleanAssigned === cleanTargetName)) ||
+      (targetUsername && (assigned === targetUsername || cleanAssigned === cleanTargetUsername))
     ) {
       return true
     }
@@ -213,13 +218,15 @@ export function isTaskAssignedToUser(task: Task, user?: User | null): boolean {
     const aEmail = a.email?.toLowerCase()
     const aName = a.name?.toLowerCase()
     const aUsername = a.username?.toLowerCase()
+    const cleanAName = clean(a.name)
+    const cleanAUsername = clean(a.username)
 
     if (
       (targetId && aId === targetId) ||
       (targetEmail && aEmail === targetEmail) ||
-      (targetName && aName === targetName) ||
-      (targetUsername && (aUsername === targetUsername || aName === targetUsername)) ||
-      (targetName && aUsername === targetName)
+      (targetName && (aName === targetName || cleanAName === cleanTargetName || cleanAUsername === cleanTargetName)) ||
+      (targetUsername && (aUsername === targetUsername || cleanAUsername === cleanTargetUsername || cleanAName === cleanTargetUsername)) ||
+      (cleanTargetName && (cleanAName === cleanTargetName || cleanAUsername === cleanTargetName))
     ) {
       return true
     }

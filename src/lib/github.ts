@@ -1,4 +1,5 @@
 import type { Status } from '@/types/status'
+import type { User } from '@/types/user'
 import {
   TASK_PRIORITIES,
   type Task,
@@ -317,6 +318,63 @@ export async function fetchGitHubStatuses(
 
 export function getGitHubStatuses(projectId: string, userId: string): Status[] {
   return getDefaultGitHubStatuses(projectId, userId)
+}
+
+export async function fetchGitHubAssignees(
+  repoUrl?: string | null,
+  token?: string | null
+): Promise<User[]> {
+  if (!repoUrl) return []
+  const repoInfo = parseGitHubRepo(repoUrl)
+  if (!repoInfo) return []
+  const { owner, repo } = repoInfo
+
+  const headers = getGitHubHeaders(token)
+  const users: User[] = []
+  const seenLogins = new Set<string>()
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/assignees?per_page=100`, { headers })
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        for (const u of data) {
+          if (u && u.login && !seenLogins.has(u.login.toLowerCase())) {
+            seenLogins.add(u.login.toLowerCase())
+            users.push({
+              id: u.login,
+              name: u.login,
+              username: u.login,
+              avatar: u.avatar_url || undefined
+            })
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch GitHub assignees:', err)
+  }
+
+  if (token) {
+    try {
+      const res = await fetch('https://api.github.com/user', { headers })
+      if (res.ok) {
+        const u = await res.json()
+        if (u && u.login && !seenLogins.has(u.login.toLowerCase())) {
+          seenLogins.add(u.login.toLowerCase())
+          users.unshift({
+            id: u.login,
+            name: u.name || u.login,
+            username: u.login,
+            email: u.email || undefined,
+            avatar: u.avatar_url || undefined
+          })
+        }
+      }
+    } catch {}
+  }
+
+  return users
 }
 
 export function mapGitHubIssueToTask(
@@ -936,6 +994,7 @@ export async function updateGitHubIssue(
     labels?: string[]
     relationships?: TaskRelationship[]
     priority?: TaskPriority | null
+    assigned?: string | null
   },
   token?: string | null,
   statuses?: Status[]
@@ -1015,6 +1074,9 @@ export async function updateGitHubIssue(
   if (updates.body !== undefined) patchBody.body = updates.body
   if (state !== undefined) patchBody.state = state
   if (finalLabels !== null) patchBody.labels = finalLabels
+  if (updates.assigned !== undefined) {
+    patchBody.assignees = updates.assigned ? [updates.assigned.trim()] : []
+  }
 
   const response = await fetch(url, {
     method: 'PATCH',
@@ -1065,6 +1127,7 @@ export async function createGitHubIssue(
     status?: string
     labels?: string[]
     priority?: TaskPriority | null
+    assigned?: string | null
   },
   projectId: string,
   userId: string,
@@ -1120,17 +1183,22 @@ export async function createGitHubIssue(
     }
   }
 
+  const createBody: Record<string, unknown> = {
+    title: data.title,
+    body: data.body,
+    labels: payloadLabels
+  }
+  if (data.assigned) {
+    createBody.assignees = [data.assigned.trim()]
+  }
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       ...getGitHubHeaders(resolvedToken),
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      title: data.title,
-      body: data.body,
-      labels: payloadLabels
-    })
+    body: JSON.stringify(createBody)
   })
 
   if (!response.ok) {

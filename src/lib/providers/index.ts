@@ -1,8 +1,11 @@
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
 import type { Task, TaskLabel } from '@/types/task'
+import type { User } from '@/types/user'
+import { parseCodebergRepo } from '@/lib/codeberg'
 import { parseGitHubRepo } from '@/lib/github'
 import { parseJiraUrl } from '@/lib/jira'
+import { codebergAdapter } from './codeberg'
 import { githubAdapter } from './github'
 import { jiraAdapter } from './jira'
 import type { CreateIssueInput, ProviderAdapter, UpdateIssueInput } from './types'
@@ -11,7 +14,8 @@ export * from './types'
 
 const adapters: Record<string, ProviderAdapter> = {
   github: githubAdapter,
-  jira: jiraAdapter
+  jira: jiraAdapter,
+  codeberg: codebergAdapter
 }
 
 export function validateProviderRepoUrl(provider: string, repoUrl: string): string | null {
@@ -28,6 +32,10 @@ export function validateProviderRepoUrl(provider: string, repoUrl: string): stri
   if (normProvider === 'github') {
     if (!parseGitHubRepo(repoUrl)) {
       return 'Please enter a valid GitHub repository URL (e.g., https://github.com/owner/repo).'
+    }
+  } else if (normProvider === 'codeberg') {
+    if (!parseCodebergRepo(repoUrl)) {
+      return 'Please enter a valid Codeberg repository URL (e.g., https://codeberg.org/owner/repo).'
     }
   } else if (normProvider === 'jira') {
     if (!parseJiraUrl(repoUrl)) {
@@ -105,6 +113,16 @@ export async function fetchProviderLabels(
   const provider = getProvider(project)
   if (!provider) return []
   return provider.getLabels(project, token, userEmail)
+}
+
+export async function fetchProviderUsers(
+  project: Project,
+  token?: string | null,
+  userEmail?: string | null
+): Promise<User[]> {
+  const provider = getProvider(project)
+  if (!provider || !provider.getUsers) return []
+  return provider.getUsers(project, token, userEmail)
 }
 
 export async function createProviderIssue(

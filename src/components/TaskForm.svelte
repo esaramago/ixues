@@ -32,6 +32,7 @@
     assigned?: string
     labels?: string[]
     relationships?: TaskRelationship[]
+    branches?: TaskBranch[]
   }
 
   interface Props {
@@ -102,6 +103,9 @@
   let selectedRelationships = $state<TaskRelationship[]>([])
   let newRelType = $state<RelationshipType>('relates_to')
   let newRelTaskId = $state('')
+  let selectedBranches = $state<TaskBranch[]>([])
+  let newBranchName = $state('')
+  let newBranchUrl = $state('')
   let prevKey = $state('')
   let isConfirmOpen = $state(false)
 
@@ -135,6 +139,7 @@
         ? task.labels.map((l) => (typeof l === 'string' ? l : l.name))
         : []
       selectedRelationships = Array.isArray(task?.relationships) ? [...task.relationships] : []
+      selectedBranches = Array.isArray(task?.branches) ? [...task.branches] : []
     }
     if (form?.priority !== undefined) {
       priority = form.priority || ''
@@ -153,6 +158,9 @@
     }
     if (form?.relationships !== undefined) {
       selectedRelationships = form.relationships
+    }
+    if (form?.branches !== undefined && !isSyncTask) {
+      selectedBranches = form.branches
     }
   })
 
@@ -207,6 +215,34 @@
 
   function handleRemoveRelationship(index: number) {
     selectedRelationships = selectedRelationships.filter((_, i) => i !== index)
+  }
+
+  function handleAddBranch() {
+    const name = newBranchName.trim()
+    if (!name) return
+
+    const url = newBranchUrl.trim()
+    const exists = selectedBranches.some(
+      (branch) => branch.name === name && (branch.url || '') === url
+    )
+    if (!exists) {
+      selectedBranches = [...selectedBranches, { name, url: url || undefined }]
+    }
+
+    newBranchName = ''
+    newBranchUrl = ''
+  }
+
+  function handleRemoveBranch(index: number) {
+    selectedBranches = selectedBranches.filter((_, i) => i !== index)
+  }
+
+  function handleBranchChange(index: number, field: 'name' | 'url', value: string) {
+    selectedBranches = selectedBranches.map((branch, i) =>
+      i === index
+        ? { ...branch, [field]: field === 'url' ? value || undefined : value }
+        : branch
+    )
   }
 </script>
 
@@ -429,10 +465,10 @@
             <input type="hidden" name="relationships" value={JSON.stringify(selectedRelationships)} />
           </Grid>
 
-          {#if isSyncTask}
-            <Grid direction="column" gap="s">
-              <h4 data-appearance="h6">Branches</h4>
+          <Grid direction="column" gap="s">
+            <h4 data-appearance="h6">Branches</h4>
 
+            {#if isSyncTask}
               {#if task?.branches && task.branches.length > 0}
                 <Grid direction="column" gap="xs">
                   {#each task.branches as branch (branch.name)}
@@ -452,8 +488,88 @@
               {:else}
                 <small>No linked branches found for this issue.</small>
               {/if}
-            </Grid>
-          {/if}
+            {:else}
+              {#if selectedBranches.length > 0}
+                <Grid direction="column" gap="s">
+                  {#each selectedBranches as branch, index (index)}
+                    <Grid break="mobile" align="end" gap="s">
+                      <wa-input
+                        label="Branch"
+                        value={branch.name}
+                        oninput={(e: Event) =>
+                          handleBranchChange(index, 'name', (e.target as HTMLInputElement).value)}
+                      ></wa-input>
+
+                      <wa-input
+                        label="URL"
+                        placeholder="https://github.com/owner/repo/tree/branch"
+                        value={branch.url ?? ''}
+                        oninput={(e: Event) =>
+                          handleBranchChange(index, 'url', (e.target as HTMLInputElement).value)}
+                      ></wa-input>
+
+                      <Grid gap="s" align="center">
+                        {#if branch.url}
+                          <wa-button
+                            href={branch.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            variant="neutral"
+                            size="s"
+                          >
+                            <wa-icon name="arrow-up-right-from-square" variant="solid"></wa-icon>
+                            Open
+                          </wa-button>
+                        {/if}
+                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                        <!-- svelte-ignore a11y_no_static_element_interactions -->
+                        <wa-button
+                          type="button"
+                          size="xs"
+                          variant="neutral"
+                          appearance="plain"
+                          onclick={() => handleRemoveBranch(index)}
+                          aria-label="Remove branch"
+                        >
+                          <wa-icon name="xmark" variant="solid"></wa-icon>
+                        </wa-button>
+                      </Grid>
+                    </Grid>
+                  {/each}
+                </Grid>
+              {/if}
+
+              <Grid break="mobile" align="end" gap="s">
+                <wa-input
+                  label="Branch"
+                  placeholder="e.g. feature/9-branch"
+                  value={newBranchName}
+                  oninput={(e: Event) => (newBranchName = (e.target as HTMLInputElement).value)}
+                ></wa-input>
+
+                <wa-input
+                  label="URL"
+                  placeholder="https://github.com/owner/repo/tree/branch"
+                  value={newBranchUrl}
+                  oninput={(e: Event) => (newBranchUrl = (e.target as HTMLInputElement).value)}
+                ></wa-input>
+
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <wa-button
+                  type="button"
+                  variant="neutral"
+                  disabled={!newBranchName.trim()}
+                  onclick={handleAddBranch}
+                >
+                  <wa-icon slot="start" name="plus" variant="solid"></wa-icon>
+                  Add Branch
+                </wa-button>
+              </Grid>
+
+              <input type="hidden" name="branches" value={JSON.stringify(selectedBranches)} />
+            {/if}
+          </Grid>
 
           {#if shareUrl}
             <wa-input

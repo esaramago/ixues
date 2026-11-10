@@ -3,6 +3,7 @@
   import Back from '@/components/Back.svelte'
   import ConfirmDialog from '@/components/ConfirmDialog.svelte'
   import Grid from '@/components/Grid.svelte'
+  import { onlySelf } from '@/lib/events'
   import type { ProviderType, UserToken } from '@/types/token'
   import type { ActionData, PageData } from './$types'
 
@@ -18,10 +19,17 @@
   let modalToken = $state('')
   let isSubmitting = $state(false)
 
+  function getProviderDisplayName(provider?: string): string {
+    if (provider === 'github') return 'GitHub'
+    if (provider === 'codeberg') return 'Codeberg'
+    if (provider === 'jira') return 'Jira'
+    return 'Token'
+  }
+
   function openCreateModal(provider?: ProviderType) {
     editingToken = null
     modalProvider = provider || 'github'
-    modalName = provider ? (provider === 'github' ? 'GitHub' : 'Jira') : 'GitHub'
+    modalName = provider ? getProviderDisplayName(provider) : 'GitHub'
     modalToken = ''
     isModalOpen = true
   }
@@ -29,7 +37,7 @@
   function openEditModal(token: UserToken) {
     editingToken = token
     modalProvider = token.provider
-    modalName = token.name || (token.provider === 'github' ? 'GitHub' : 'Jira')
+    modalName = token.name || getProviderDisplayName(token.provider)
     modalToken = ''
     isModalOpen = true
   }
@@ -51,8 +59,8 @@
 
   function handleProviderChange(event: Event) {
     modalProvider = (event.target as HTMLInputElement).value as ProviderType
-    if (!modalName || modalName === 'GitHub' || modalName === 'Jira') {
-      modalName = modalProvider === 'github' ? 'GitHub' : 'Jira'
+    if (!modalName || modalName === 'GitHub' || modalName === 'Codeberg' || modalName === 'Jira') {
+      modalName = getProviderDisplayName(modalProvider)
     }
   }
 
@@ -65,7 +73,7 @@
   <Back
     href="/"
     title="Access Tokens"
-    subtitle="Configure personal access tokens for external integrations (GitHub, Jira)"
+    subtitle="Configure personal access tokens for external integrations (GitHub, Codeberg, Jira)"
   />
 
   {#if form?.error}
@@ -103,10 +111,10 @@
         <wa-card>
           <Grid direction="column" gap="s">
             <Grid align="center" justify="space-between">
-              <strong>{token.name || (token.provider === 'github' ? 'GitHub' : 'Jira')}</strong>
+              <strong>{token.name || getProviderDisplayName(token.provider)}</strong>
               <wa-badge variant="neutral">
                 <wa-icon slot="start" family="brands" name={token.provider}></wa-icon>
-                {token.provider === 'github' ? 'GitHub' : 'Jira'}
+                {getProviderDisplayName(token.provider)}
               </wa-badge>
             </Grid>
 
@@ -139,7 +147,7 @@
 <wa-dialog
   label={editingToken ? 'Update Access Token' : 'Add Access Token'}
   open={isModalOpen}
-  onwa-after-hide={handleModalClose}
+  onwa-after-hide={onlySelf(handleModalClose)}
 >
   <form
     method="POST"
@@ -172,6 +180,7 @@
         required
       >
         <wa-option value="github">GitHub</wa-option>
+        <wa-option value="codeberg">Codeberg</wa-option>
         <wa-option value="jira">Jira</wa-option>
       </wa-select>
 
@@ -190,6 +199,13 @@
             Enter your Jira API token (or email:token). Generate one at
             <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
               Atlassian API Tokens
+            </a>.
+          </span>
+        {:else if modalProvider === 'codeberg'}
+          <span slot="hint">
+            Personal access token for Codeberg authentication. Generate one at
+            <a href="https://codeberg.org/user/settings/applications" target="_blank" rel="noreferrer">
+              Codeberg Applications Settings
             </a>.
           </span>
         {:else}

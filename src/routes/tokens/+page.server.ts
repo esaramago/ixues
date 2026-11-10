@@ -27,9 +27,9 @@ export const actions: Actions = {
     const name = (data.get('name') as string)?.trim() || ''
     const token = (data.get('token') as string)?.trim() || ''
 
-    if (!provider || (provider !== 'github' && provider !== 'jira')) {
+    if (!provider || (provider !== 'github' && provider !== 'jira' && provider !== 'codeberg')) {
       return fail(400, {
-        error: 'Please select a valid provider (GitHub or Jira).',
+        error: 'Please select a valid provider (GitHub, Codeberg, or Jira).',
         provider,
         name
       })

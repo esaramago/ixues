@@ -2,7 +2,7 @@
 
 An issue and task tracking web application built with SvelteKit, PocketBase, and WebAwesome.
 
-Supports local issue tracking as well as synchronized projects connecting directly with external providers like GitHub and Jira.
+Supports local issue tracking as well as synchronized projects connecting directly with external providers like GitHub, Codeberg, and Jira.
 
 ---
 

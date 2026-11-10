@@ -1,4 +1,9 @@
-import { TASK_PRIORITIES, type TaskPriority, type TaskRelationship } from '@/types/task'
+import {
+  TASK_PRIORITIES,
+  type TaskBranch,
+  type TaskPriority,
+  type TaskRelationship
+} from '@/types/task'
 
 export interface ParsedTaskFormData {
   title: string
@@ -8,6 +13,7 @@ export interface ParsedTaskFormData {
   assigned: string
   labels: string[]
   relationships: TaskRelationship[]
+  branches: TaskBranch[]
 }
 
 const VALID_PRIORITIES: readonly string[] = TASK_PRIORITIES
@@ -62,6 +68,31 @@ export function parseTaskFormData(data: FormData): ParsedTaskFormData {
     }
   }
 
+  const rawBranches = data.get('branches') as string
+  let branches: TaskBranch[] = []
+  if (rawBranches) {
+    try {
+      const parsed = JSON.parse(rawBranches)
+      if (Array.isArray(parsed)) {
+        const seen = new Set<string>()
+        branches = parsed
+          .map((item) => ({
+            name: String(item?.name || '').trim(),
+            url: item?.url ? String(item.url).trim() : undefined
+          }))
+          .filter((item) => {
+            if (!item.name) return false
+            const key = `${item.name}::${item.url || ''}`
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+          })
+      }
+    } catch (err) {
+      console.error('Failed to parse branches:', err)
+    }
+  }
+
   return {
     title,
     description,
@@ -69,6 +100,7 @@ export function parseTaskFormData(data: FormData): ParsedTaskFormData {
     status,
     assigned,
     labels,
-    relationships
+    relationships,
+    branches
   }
 }

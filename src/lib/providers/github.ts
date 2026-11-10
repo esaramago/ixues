@@ -1,8 +1,10 @@
 import type { Project } from '@/types/project'
 import type { Status } from '@/types/status'
 import type { Task, TaskLabel } from '@/types/task'
+import type { User } from '@/types/user'
 import {
   createGitHubIssue,
+  fetchGitHubAssignees,
   fetchGitHubIssue,
   fetchGitHubIssues,
   fetchGitHubLabels,
@@ -76,6 +78,11 @@ export const githubAdapter: ProviderAdapter = {
     return fetchGitHubLabels(project.repo_url, token)
   },
 
+  async getUsers(project: Project, token?: string | null): Promise<User[]> {
+    if (!project.repo_url) return []
+    return fetchGitHubAssignees(project.repo_url, token)
+  },
+
   async createIssue(
     project: Project,
     data: CreateIssueInput,
@@ -94,7 +101,8 @@ export const githubAdapter: ProviderAdapter = {
         body: data.body,
         status: data.status,
         labels: data.labels,
-        priority: data.priority
+        priority: data.priority,
+        assigned: data.assigned
       },
       project.id,
       userId,
@@ -132,7 +140,8 @@ export const githubAdapter: ProviderAdapter = {
         status: updates.status,
         labels: updates.labels,
         relationships: updates.relationships,
-        priority: updates.priority
+        priority: updates.priority,
+        assigned: updates.assigned
       },
       token,
       statuses
