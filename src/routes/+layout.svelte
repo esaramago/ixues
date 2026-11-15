@@ -26,7 +26,8 @@
   import '@awesome.me/webawesome/dist/components/textarea/textarea.js'
   import '@awesome.me/webawesome/dist/components/checkbox/checkbox.js'
   import '@awesome.me/webawesome/dist/components/copy-button/copy-button.js'
-  import Header from '@/components/Header.svelte'
+  import Header from '@/components/layout/Header.svelte'
+  import Sidebar from '@/components/layout/Sidebar.svelte'
 
   WaMarkdown.getMarked().use({ breaks: true })
 
@@ -40,7 +41,28 @@
 {#if navigating.to}
   <wa-progress-bar indeterminate></wa-progress-bar>
 {/if}
-<Header />
-<main class="l-container">
-  {@render children?.()}
-</main>
+
+<div class="wrapper">
+  <Sidebar />
+  <div class="content l-container">
+    <Header />
+    <main>
+      {@render children?.()}
+    </main>
+  </div>
+</div>
+
+<style>
+.wrapper {
+  height: 100vh;
+  overflow: auto;
+  @media (min-width: 1025px) {
+    display: grid;
+    grid-template-columns: 28rem 1fr;
+  }
+}
+.content {
+  height: 100vh;
+  overflow: auto;
+}
+</style>

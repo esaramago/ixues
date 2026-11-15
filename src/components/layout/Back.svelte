@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
-  import Grid from '@/components/Grid.svelte'
+  import Grid from '@/components/layout/Grid.svelte'
 
   interface Props {
     href: string

@@ -1,14 +1,8 @@
 :root {
-  color-scheme: dark;
-
   --wa-font-size-scale: 1.6;
   --wa-shadow-scale: 1.6;
   --wa-space-scale: 1.6;
   --wa-border-radius-scale: 1.6;
-
-  --wa-color-neutral-0: #050505;
-
-  --wa-color-surface-default: var(--wa-color-neutral-10);
 }
 
 

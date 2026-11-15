@@ -1,8 +1,8 @@
 <script lang="ts">
   import { enhance } from '$app/forms'
-  import Back from '@/components/Back.svelte'
+  import Back from '@/components/layout/Back.svelte'
   import ConfirmDialog from '@/components/ConfirmDialog.svelte'
-  import Grid from '@/components/Grid.svelte'
+  import Grid from '@/components/layout/Grid.svelte'
   import { onlySelf } from '@/lib/events'
   import type { ProviderType, UserToken } from '@/types/token'
   import type { ActionData, PageData } from './$types'

@@ -1,10 +1,42 @@
 <!doctype html>
-<html lang="en" class="wa-dark wa-cloak">
+<html lang="en" class="wa-cloak">
 	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		%sveltekit.head%
+    <meta charset="UTF-8" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/img/icons/apple-touch-icon.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="/img/icons/favicon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="/img/icons/favicon-16x16.png"
+    />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
+    <link rel="icon" href="/favicon.ico" />
+
+    <script nonce="%sveltekit.nonce%">
+      (function () {
+        const media = window.matchMedia('(prefers-color-scheme: dark)');
+        function applyTheme(isDark) {
+          document.documentElement.classList.toggle('wa-dark', isDark);
+        }
+        applyTheme(media.matches);
+        media.addEventListener('change', (e) => applyTheme(e.matches));
+      })();
+    </script>
+	
+	  %sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">

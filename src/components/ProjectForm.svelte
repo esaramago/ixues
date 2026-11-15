@@ -1,8 +1,8 @@
 <script lang="ts">
   import { page } from '$app/stores'
-  import Back from '@/components/Back.svelte'
+  import Back from '@/components/layout/Back.svelte'
   import ConfirmDialog from '@/components/ConfirmDialog.svelte'
-  import Grid from '@/components/Grid.svelte'
+  import Grid from '@/components/layout/Grid.svelte'
   import type { Project } from '@/types/project'
   import type { UserToken } from '@/types/token'
 

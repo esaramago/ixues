@@ -1,9 +1,9 @@
 <script lang="ts">
   import { deserialize } from '$app/forms'
   import { invalidateAll } from '$app/navigation'
-  import Back from '@/components/Back.svelte'
+  import Back from '@/components/layout/Back.svelte'
   import ConfirmDialog from '@/components/ConfirmDialog.svelte'
-  import Grid from '@/components/Grid.svelte'
+  import Grid from '@/components/layout/Grid.svelte'
   import StatusForm from '@/components/StatusForm.svelte'
   import Task from '@/components/Task.svelte'
   import { onlySelf } from '@/lib/events'
@@ -613,7 +613,7 @@
   min-width: var(--width);
   max-width: var(--width);
   overflow: auto;
-  background-color: var(--wa-color-neutral-05);
+  background-color: var(--wa-color-surface-quiet);
 
   @media (max-width: 1400px) {
     --width: 25rem;

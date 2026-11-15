@@ -1,6 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms'
-  import Grid from '@/components/Grid.svelte'
+  import Grid from '@/components/layout/Grid.svelte'
   import type { Status } from '@/types/status'
 
   export interface StatusFormData {

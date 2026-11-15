@@ -1,6 +1,6 @@
 <script lang="ts">
   import { navigating } from '$app/state'
-  import Grid from '@/components/Grid.svelte'
+  import Grid from '@/components/layout/Grid.svelte'
   import type { PageData } from './$types'
 
   let { data }: { data: PageData } = $props()

@@ -1,16 +1,15 @@
 <script lang="ts">
   import { page } from '$app/stores'
-  import Grid from '@/components/Grid.svelte'
+  import Grid from '@/components/layout/Grid.svelte'
+  import Logo from './Logo.svelte'
 </script>
 
-<header class="l-container">
+<header>
   <Grid align="center" justify="space-between">
-    <a href="/">
-      <Grid align="center" gap="s">
-        <wa-icon name="circle-dot" variant="solid"></wa-icon>
-        <strong>Ixues</strong>
-      </Grid>
-    </a>
+
+    <div class="is-hidden-desktop">
+      <Logo />
+    </div>
 
     <Grid align="center" gap="s">
       {#if $page.data.user}
@@ -30,7 +29,7 @@
 </header>
 
 <style>
-  header {
-    padding: var(--wa-space-l) var(--wa-space-xl);
-  }
+header {
+  padding-block: var(--wa-space-l);
+}
 </style>

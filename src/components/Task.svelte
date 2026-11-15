@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Grid from '@/components/Grid.svelte'
+  import Grid from '@/components/layout/Grid.svelte'
   import { getLabelInfo, getPriorityIcon, getPriorityVariant, type Task } from '@/types/task'
 
   interface Props {

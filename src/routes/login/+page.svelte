@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Back from '@/components/Back.svelte'
-  import Grid from '@/components/Grid.svelte'
+  import Back from '@/components/layout/Back.svelte'
+  import Grid from '@/components/layout/Grid.svelte'
   import type { ActionData } from './$types'
 
   let { form }: { form: ActionData } = $props()

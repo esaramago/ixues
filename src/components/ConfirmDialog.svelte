@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms'
   import type { Snippet } from 'svelte'
-  import Grid from '@/components/Grid.svelte'
+  import Grid from '@/components/layout/Grid.svelte'
   import { onlySelf } from '@/lib/events'
 
   type ButtonVariant = 'brand' | 'neutral' | 'success' | 'warning' | 'danger'
