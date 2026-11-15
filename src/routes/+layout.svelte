@@ -31,7 +31,7 @@
 
   WaMarkdown.getMarked().use({ breaks: true })
 
-  let { children } = $props()
+  let { data, children } = $props()
 </script>
 
 <svelte:head>
@@ -42,8 +42,10 @@
   <wa-progress-bar indeterminate></wa-progress-bar>
 {/if}
 
-<div class="wrapper">
-  <Sidebar />
+<div class={['wrapper', data.user ? 'logged-in' : '']}>
+  {#if data.user}
+    <Sidebar projects={data.projects} />
+  {/if}
   <div class="content l-container">
     <Header />
     <main>
@@ -56,9 +58,11 @@
 .wrapper {
   height: 100vh;
   overflow: auto;
-  @media (min-width: 1025px) {
-    display: grid;
-    grid-template-columns: 28rem 1fr;
+  &.logged-in {
+    @media (min-width: 1025px) {
+      display: grid;
+      grid-template-columns: 30rem 1fr;
+    }
   }
 }
 .content {
